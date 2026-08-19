@@ -1,7 +1,7 @@
 ---
-name: agent-skill-guide
+name: agent-skills-guide
 description: Create, modify, and test Agent Skills per the Agent Skills specification. Use when building a new skill, extending an existing skill's patterns/references, restructuring a skill's file organization per the spec, validating frontmatter, optimizing descriptions for triggering, or evaluating skill output quality. This skill provides progressive-disclosure guidance via patterns/ and references/.
-license: CC-BY-4.0
+license: MIT
 metadata:
   author: agentskills
   version: "1.0"
