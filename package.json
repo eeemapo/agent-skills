@@ -1,0 +1,12 @@
+{
+  "name": "agent-skills",
+  "version": "0.1.0",
+  "description": "Collection of independent Agent Skills",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "pi": {
+    "skills": [
+      "./agent-skills-guide"
+    ]
+  }
+}
