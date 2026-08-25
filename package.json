@@ -6,7 +6,9 @@
   "license": "MIT",
   "pi": {
     "skills": [
-      "./agent-skills-guide"
+      "./skill-create",
+      "./skill-modify",
+      "./skill-validate"
     ]
   }
 }
