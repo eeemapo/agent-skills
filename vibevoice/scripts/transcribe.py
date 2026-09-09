@@ -91,52 +91,72 @@ def write_markdown(data, out_path):
             content = seg.get('Content', '').strip()
             lines.append(f"**Speaker {speaker}** - {start:.2f}-{end:.2f}s: {content}")
     else:
+        # Integrated gen_md.py logic for chunk-based transcripts
         chunk_texts = data.get('chunk_texts', [])
-        total = total_chunks or len(chunk_texts)
-        if total > 0 and audio_duration:
+        total = total_chunks if isinstance(total_chunks, int) else len(chunk_texts)
+        if total > 0 and isinstance(audio_duration, (int, float)):
             chunk_dur = audio_duration / total
         else:
             chunk_dur = 2.933333
-        speaker_pat = re.compile(r'Speaker\s*(\d+):\s*(.*)')
-        for i, chunk in enumerate(chunk_texts):
-            start = i * chunk_dur
-            end = (i + 1) * chunk_dur
-            m = speaker_pat.search(chunk)
-            if m:
-                speaker = m.group(1)
-                content = re.sub(r'^Speaker\s*\d+:\s*', '', chunk, flags=re.MULTILINE).strip()
-                content = ' '.join(content.split())
-                lines.append(f"**Speaker {speaker}** - {start:.2f}-{end:.2f}s: {content}")
+
+        # Use gen_md style when full text is available
+        if data.get('text'):
+            text = data['text']
+            pat_text = re.compile(r"Speaker\s*(\d+):\s*(.*?)(?=\n\s*Speaker\s*\d+:|$)", re.DOTALL)
+            turns = []
+            for m in pat_text.finditer(text):
+                spk = m.group(1)
+                txt = " ".join(m.group(2).split())
+                if txt:
+                    turns.append((spk, txt))
+            pat_chunk = re.compile(r"Speaker\s*(\d+):")
+            markers = []
+            for i, c in enumerate(chunk_texts):
+                for m in pat_chunk.finditer(c):
+                    markers.append(i)
+            if turns and markers:
+                for (spk, txt), i in zip(turns, markers):
+                    t = i * chunk_dur
+                    lines.append(f"[{t:.2f}s] **Speaker {spk}** : {txt}")
             else:
-                content = ' '.join(chunk.split())
-                lines.append(f"**Speaker ?** - {start:.2f}-{end:.2f}s: {content}")
+                lines.append('*No transcript data found*')
+        else:
+            # Fallback: simple per-chunk first speaker extraction
+            speaker_pat = re.compile(r'Speaker\s*(\d+):\s*(.*?)(?=\s*Speaker\s*\d+:|$)', re.DOTALL)
+            if chunk_texts:
+                for i, chunk in enumerate(chunk_texts):
+                    segs = list(speaker_pat.finditer(chunk))
+                    if segs:
+                        spk = segs[0].group(1)
+                        txt = " ".join(segs[0].group(2).split())
+                        if txt:
+                            t = i * chunk_dur
+                            lines.append(f"[{t:.2f}s] **Speaker {spk}** : {txt}")
+            else:
+                lines.append('*No transcript data found*')
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
 
 def build_context(speakers, hotwords, scene):
-    parts = []
+    speaker_part = ""
     if speakers:
         s = speakers.strip()
         if re.fullmatch(r'\d+', s):
             n = int(s)
-            parts.append(f"{n} speakers")
+            speaker_part = f"{n} speakers"
         else:
             names = [n.strip() for n in s.split(',') if n.strip()]
-            n = len(names)
-            if n == 1:
-                parts.append(f"1 speaker: {names[0]}")
-            elif n == 2:
-                parts.append(f"2 speakers: {names[0]} and {names[1]}")
-            elif n > 2:
-                all_but_last = ', '.join(names[:-1])
-                parts.append(f"{n} speakers: {all_but_last} and {names[-1]}")
-            else:
-                parts.append(f"{n} speakers")
-    if hotwords:
-        parts.append(f"Hotwords: {hotwords}")
+            if len(names) > 0:
+                # Drop count prefix, use names only as requested
+                speaker_part = ', '.join(names)
+    parts = []
+    if speaker_part:
+        parts.append(speaker_part)
     if scene:
         parts.append(scene.strip())
-    return ' '.join(parts)
+    if hotwords:
+        parts.append(f"Hotwords: {hotwords}")
+    return '. '.join(parts)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -146,7 +166,7 @@ def main():
     parser.add_argument('audio', help='Audio file path to transcribe')
     parser.add_argument('--speakers', '-s', default='', help='Speaker count e.g. 2 or names comma separated e.g. Interviewer,Interviewee')
     parser.add_argument('--hotwords', '-w', default='', help='Comma separated hotwords to bias recognition')
-    parser.add_argument('--scene', '-c', default='', help='Scene description / setting to provide context')
+    parser.add_argument('--context', '-c', default='', help='Context description to provide context')
     parser.add_argument('--url', '-u', default=None, help='Override server base URL from config.ini')
     parser.add_argument('--api-key', '-k', default=None, help='Override API key from config.ini')
     parser.add_argument('--output', '-o', choices=['json','markdown','raw'], help='Output format. json -> <name>.json file, markdown -> <name>.md file, raw -> print raw server JSON to stdout. If omitted, raw JSON is printed to stdout')
@@ -167,7 +187,7 @@ def main():
         sys.stderr.write("Config error: API key is empty\n")
         sys.exit(1)
 
-    context_info = build_context(args.speakers, args.hotwords, args.scene)
+    context_info = build_context(args.speakers, args.hotwords, args.context)
 
     print(f"Transcribing {args.audio} ...", file=sys.stderr)
     print(f"Server: {server_url}", file=sys.stderr)
