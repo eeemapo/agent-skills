@@ -12,12 +12,13 @@ cannot express.
 
 ## Resolving an address
 
-Notes are addressed by a short prefix, typically a number such as `10.24`. Resolve by
-prefix, never by guessing a full path:
+Notes are addressed by a short prefix. Resolve by prefix, never by guessing a
+full path (the fallback keeps this working even when `KB_ROOT` is unset):
 
 ```bash
-find "$KB_ROOT" -iname '10.24*'            # matching folder and note
-find "$KB_ROOT" -maxdepth 3 -type d        # see the top level
+KA="${KB_ROOT:-$HOME/notes/main}"
+find "$KA" -iname '14.11*'          # matching folder and note
+find "$KA" -maxdepth 3 -type d      # see the top level
 ```
 
 This vault is a Johnny.Decimal catalog: category `CC`, item `CC.NN` (e.g. `14.11`).

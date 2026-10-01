@@ -67,7 +67,7 @@ Every call is `POST https://<core-host>/<module>` with JSON body `{"type": "<Req
 Credentials come only from the environment; topology is derived from the live API. For non-derivable specifics (ownership, environment names, maintenance windows, conventions), this skill can hook to a local knowledge base:
 
 - Base path: `$KB_ROOT` (default `~/notes/main`).
-- Notes use a Johnny Decimal address. For this deployment, homelab topology is **`14.11`** and networking is **`14.12`**: resolve with `find "$KB_ROOT" -iname '14.11*'`, then read the matching note.
+- Notes use a Johnny Decimal address. For this deployment, homelab topology is **`14.11`** and networking is **`14.12`**: resolve with `find "${KB_ROOT:-$HOME/notes/main}" -iname '14.11*'`, then read the matching note.
 - Endpoint/keys come from `~/.config/komodo/komodo.env` (see [`patterns/authenticate.md`](patterns/authenticate.md)); notes record env var **names**, never secret values.
 - If the KB is absent or an address is missing, proceed with live API discovery — never block on it.
 - Never write secrets, keys, or full credential values into the KB.
@@ -112,3 +112,4 @@ Dependency-free helpers live in [`scripts/`](scripts/) (Python stdlib only; cred
 - **Executions return `Update`, not the finished result.** Poll `/read/GetUpdate` until `status == "Complete"`, then check `success` and `logs`.
 - **Terminal execute returns a raw byte stream**, not JSON. Create the session first (`/write/CreateTerminal`) when you need a stable named session.
 - Use `GET /user` to confirm which identity a key maps to, and `/read/GetPermission` before operating on a resource you may only partially control.
+- **Check `GetVersion` first.** The catalog targets Core 2.3.x; on **< 2.3.0** container endpoints use old `Docker*` names (see [`references/endpoint-catalog.md`](references/endpoint-catalog.md)).

@@ -2,10 +2,29 @@
 
 All requests are `POST` with body `{"type": "<Name>", "params": { ... }}` to the module path. Names below are the `type` values. `**Admin only**` / `**Super Admin**` are enforced server-side.
 
+## Version compatibility
+
+Names below match Core **2.3.x**. On Core **< 2.3.0** the Docker endpoints still use `Docker*` names; a 2.3.x server accepts the old names as aliases, but an old server rejects the new ones. Call `/read/GetVersion` first and substitute when needed:
+
+| 2.3.x | < 2.3.0 |
+|-------|---------|
+| `GetContainersSummary` | `GetDockerContainersSummary` |
+| `ListAllContainers` | `ListAllDockerContainers` |
+| `ListContainers` | `ListDockerContainers` |
+| `InspectContainer` | `InspectDockerContainer` |
+| `ListNetworks` / `InspectNetwork` | `ListDockerNetworks` / `InspectDockerNetwork` |
+| `ListImages` / `InspectImage` / `ListImageHistory` | `ListDockerImages` / `InspectDockerImage` / `ListDockerImageHistory` |
+| `ListVolumes` / `InspectVolume` | `ListDockerVolumes` / `InspectDockerVolume` |
+| `ListImageRegistriesFromConfig` | `ListDockerRegistriesFromConfig` |
+| `GetImageRegistryAccount` / `ListImageRegistryAccounts` | `GetDockerRegistryAccount` / `ListDockerRegistryAccounts` |
+| `Create`/`Update`/`DeleteImageRegistryAccount` | `Create`/`Update`/`DeleteDockerRegistryAccount` |
+
 ## `/read`
 
 **Core / config**
 `GetVersion`, `GetCoreInfo`, `ListSecrets`, `ListGitProvidersFromConfig`, `ListImageRegistriesFromConfig`
+
+> On Core < 2.3.0 use the `Docker*` synonyms from the compatibility table above.
 
 **Swarm**
 `GetSwarmsSummary`, `GetSwarm`, `GetSwarmActionState`, `ListSwarms`, `ListFullSwarms`, `InspectSwarm`, `ListSwarmNodes`, `InspectSwarmNode`, `ListSwarmConfigs`, `InspectSwarmConfig`, `ListSwarmSecrets`, `InspectSwarmSecret`, `ListSwarmStacks`, `InspectSwarmStack`, `ListSwarmTasks`, `InspectSwarmTask`, `ListSwarmServices`, `InspectSwarmService`, `GetSwarmServiceLog`, `SearchSwarmServiceLog`, `ListSwarmNetworks`

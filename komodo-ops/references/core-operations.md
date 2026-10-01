@@ -58,6 +58,7 @@ Per-server key rotation is also available as `/write/RotateServerKeys` `{server}
 ## Versioning and clients
 
 - `GET /version` returns the Core package version (unauthenticated) — quick liveness check.
+- **Check the version before trusting the catalog.** This skill targets Core **2.3.x**; on **< 2.3.0** the container/Docker endpoints use old `Docker*` names (see the compatibility table in [`endpoint-catalog.md`](endpoint-catalog.md)). Where possible, run Core `>= 2.3.0` so the documented names apply directly.
 - `GET /docs` serves the full interactive OpenAPI reference (schema source of truth).
 - `GET /client/{lib,types,responses,terminal}.{js,d.ts}` serves generated TypeScript client and types; a Rust client (`komodo_client`) exists on crates.io.
 
