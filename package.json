@@ -12,7 +12,8 @@
       "./skill-modify",
       "./skill-validate",
       "./johnny-decimal-catalog",
-      "./komodo-ops"
+      "./komodo-ops",
+      "./mcp-oauth-public-client"
     ]
   }
 }
