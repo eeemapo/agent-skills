@@ -10,6 +10,7 @@ Credentials (flags override environment):
   KOMODO_API_KEY     API key     (K_...)
   KOMODO_API_SECRET  API secret  (S_...)
   KOMODO_CORE        alias for KOMODO_HOST
+  KOMODO_ENV_FILE    file of KEY=value creds (default ~/.config/komodo/komodo.env)
 
 Examples:
   komodo_api.py read GetCoreInfo
@@ -160,6 +161,37 @@ def _resolve(flag, *env_names):
     return None
 
 
+def load_env_file(path=None):
+    """Load KEY=value (or 'export KEY=value') lines into os.environ.
+
+    Reads $KOMODO_ENV_FILE, else ~/.config/komodo/komodo.env if it exists.
+    Existing environment variables are never overridden, so flags/shell exports
+    win. This lets non-interactive agents use stored credentials without
+    sourcing a shell rc file.
+    """
+    path = path or os.environ.get("KOMODO_ENV_FILE") or os.path.expanduser(
+        "~/.config/komodo/komodo.env"
+    )
+    if not path or not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = os.path.expandvars(os.path.expanduser(value))
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="komodo_api.py",
@@ -184,6 +216,7 @@ def build_parser():
 
 
 def main(argv=None):
+    load_env_file()
     args = build_parser().parse_args(argv)
     if args.module == "terminal":
         if args.request is None:

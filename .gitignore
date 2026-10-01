@@ -1,2 +1,4 @@
 # Pi workspace
 .pi/
+__pycache__/
+*.pyc

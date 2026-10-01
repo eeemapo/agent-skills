@@ -21,8 +21,10 @@ Examples:
   scoped_service_user.py --username deploy-bot --permissions @perms.json
   scoped_service_user.py --username deploy-bot --permissions @perms.json --dry-run
 
-Credentials come from --host/--key/--secret or KOMODO_HOST / KOMODO_API_KEY /
-KOMODO_API_SECRET. Requires an admin key (service users and keys are admin-only).
+Credentials come from --host/--key/--secret, the environment (KOMODO_HOST /
+KOMODO_API_KEY / KOMODO_API_SECRET), or a KEY=value file at $KOMODO_ENV_FILE
+(default ~/.config/komodo/komodo.env). Requires an admin key (service users and
+keys are admin-only).
 
 Exit codes: 0 ok, 2 usage, 3 no creds, 4 API error, 6 connection error.
 """
@@ -35,7 +37,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from komodo_api import ApiError, Client, _read_params, _resolve  # noqa: E402
+from komodo_api import ApiError, Client, _read_params, _resolve, load_env_file  # noqa: E402
 
 
 def _load_permissions(value):
@@ -85,6 +87,7 @@ def main(argv=None):
     parser.add_argument("--insecure", action="store_true")
     parser.add_argument("--timeout", type=float, default=60.0)
     args = parser.parse_args(argv)
+    load_env_file()
 
     perms = _load_permissions(args.permissions)
     host = _resolve(args.host, "KOMODO_HOST", "KOMODO_CORE")

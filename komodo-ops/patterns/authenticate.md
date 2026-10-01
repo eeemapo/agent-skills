@@ -24,6 +24,23 @@ curl -sS https://komodo.example.com/read \
 
 The bundled `scripts/komodo_api.py` wraps this: it reads the same env vars, posts `{type, params}`, and prints JSON.
 
+### Credential storage
+
+Store the endpoint and keys in a `0600` file rather than exporting them globally:
+
+```bash
+install -d -m 700 ~/.config/komodo
+install -m 600 /dev/null ~/.config/komodo/komodo.env
+cat > ~/.config/komodo/komodo.env <<'EOF'
+KOMODO_HOST="https://komo.example.com"
+KOMODO_API_KEY="K_..."
+KOMODO_API_SECRET="S_..."
+EOF
+```
+
+The scripts auto-load that file (override with `KOMODO_ENV_FILE`), so agents need no shell rc;
+existing environment variables take precedence. Never commit this file or echo its contents.
+
 ## 2. Confirm identity and permissions
 
 ```bash

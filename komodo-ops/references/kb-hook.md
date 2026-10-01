@@ -6,7 +6,7 @@ cannot express.
 
 ## Location
 
-- Base path: `$KB_ROOT` (no default; unset disables the hook).
+- Base path: `$KB_ROOT` (default `~/notes/main`; set an empty value to disable).
 - Any synced folder of Markdown files works — use normal file tools (read/grep/edit),
   no special client needed.
 
@@ -20,8 +20,18 @@ find "$KB_ROOT" -iname '10.24*'            # matching folder and note
 find "$KB_ROOT" -maxdepth 3 -type d        # see the top level
 ```
 
-If your vault uses a Johnny.Decimal-style scheme, an address like `10.24` reads as
-area `10`, item `24`.
+This vault is a Johnny.Decimal catalog: category `CC`, item `CC.NN` (e.g. `14.11`).
+An address resolves to the folder/note whose name starts with that number.
+
+## Instance defaults (this deployment)
+
+| Subject | Address |
+|---------|---------|
+| Homelab topology (hosts, roles, Komodo Core) | `14.11` |
+| Homelab networking (subnets, DNS, VPN) | `14.12` |
+
+The vault root is `~/notes/main`; Komodo endpoint/credentials live in
+`~/.config/komodo/komodo.env`. Notes record env var **names**, never values.
 
 ## Reading and writing notes
 

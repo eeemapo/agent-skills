@@ -66,8 +66,9 @@ Every call is `POST https://<core-host>/<module>` with JSON body `{"type": "<Req
 
 Credentials come only from the environment; topology is derived from the live API. For non-derivable specifics (ownership, environment names, maintenance windows, conventions), this skill can hook to a local knowledge base:
 
-- Base path: `$KB_ROOT` (no default; unset disables the hook).
-- Notes are addressed by your own numbering scheme. A task may say "refer to `10.24` in the KB": resolve it with `find "$KB_ROOT" -iname '10.24*'`, then read the matching note.
+- Base path: `$KB_ROOT` (default `~/notes/main`).
+- Notes use a Johnny Decimal address. For this deployment, homelab topology is **`14.11`** and networking is **`14.12`**: resolve with `find "$KB_ROOT" -iname '14.11*'`, then read the matching note.
+- Endpoint/keys come from `~/.config/komodo/komodo.env` (see [`patterns/authenticate.md`](patterns/authenticate.md)); notes record env var **names**, never secret values.
 - If the KB is absent or an address is missing, proceed with live API discovery — never block on it.
 - Never write secrets, keys, or full credential values into the KB.
 
@@ -75,7 +76,7 @@ See [`references/kb-hook.md`](references/kb-hook.md) for the scheme and note eti
 
 ## Bundled scripts
 
-Dependency-free helpers live in [`scripts/`](scripts/) (Python stdlib only; credentials via `KOMODO_HOST`, `KOMODO_API_KEY`, `KOMODO_API_SECRET`).
+Dependency-free helpers live in [`scripts/`](scripts/) (Python stdlib only; credentials via `KOMODO_HOST`, `KOMODO_API_KEY`, `KOMODO_API_SECRET`, or a `0600` file at `~/.config/komodo/komodo.env`).
 
 - **[`scripts/komodo_api.py`](scripts/komodo_api.py)** — send any `{type, params}` request to a module and print JSON. `--wait` polls an execution's `Update` to `Complete` (exit 5 on failure), `--dry-run` prints the request without sending, `--output` writes to a file, `--insecure` allows self-signed TLS, and the `terminal` module streams PTY output. Deterministic exit codes: 0 ok, 2 usage, 3 no creds, 4 API error, 5 exec failed, 6 connection, 7 timeout.
 
