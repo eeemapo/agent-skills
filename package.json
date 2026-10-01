@@ -2,13 +2,17 @@
   "name": "agent-skills",
   "version": "0.1.0",
   "description": "Collection of independent Agent Skills",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "license": "MIT",
   "pi": {
     "skills": [
       "./skill-create",
       "./skill-modify",
-      "./skill-validate"
+      "./skill-validate",
+      "./johnny-decimal-catalog",
+      "./komodo-ops"
     ]
   }
 }
