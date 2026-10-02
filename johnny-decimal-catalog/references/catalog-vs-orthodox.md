@@ -20,8 +20,15 @@ portable.
 
 ## What stays orthodox
 
-Everything about numbering — areas, categories, items, standard zeros, no third
-segment, one-way links. Only the **co-location** is dropped.
+Everything about numbering — areas, categories, items, **standard zeros**, no
+third segment, one-way links. Only the **co-location** is dropped. Catalog space
+is a *single, deliberate* deviation: when the only problem is "too much bulk
+data for sync", do not also improvise the numbering.
+
+In this deployment the vault is catalog space purely because of Obsidian Sync
+limits (it must stay text-sized). Every note therefore keeps its orthodox
+`CC.NN` address — written `1X.nn` for the area-`1x` vault — and the standard
+zeros (`.00`–`.09`) are used exactly as specified.
 
 ## Consequences
 

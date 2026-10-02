@@ -4,7 +4,7 @@ description: Operate a Johnny.Decimal system in catalog space — a Markdown/Obs
 license: MIT
 compatibility: Any filesystem-capable agent with read/write access to the vault. Notes are Markdown with YAML frontmatter. The bundled audit script needs Python 3.8+.
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
   spec: Agent Skills 1.0
 ---
 
@@ -34,8 +34,12 @@ Start at the Quick Reference. Read the matching pattern before acting.
 1. **Three levels only.** Area `1x` → Category `CC` → Item `CC.NN`. There is **no third
    segment**; below an item, use plain unnumbered grouping folders.
 2. **Content IDs start at `.11`.** Zero-ending IDs are never content.
-3. **Standard zeros** in every category: `.00` index · `.01` inbox · `.02` tasks ·
-   `.03` templates · `.04` links · `.05` AI · `.06–.08` reserved · `.09` archive.
+3. **Standard zeros** in every category: `.00` JDex · `.01` inbox ·
+   `.02` task & project management · `.03` templates · `.04` links · `.05` AI ·
+   `.06–.08` reserved · `.09` archive. They repeat verbatim in the
+   area-management category `A0` and the system category `00`. Authoritative
+   source: <https://johnnydecimal.com/documentation/the-standard-zeros/>
+   (`.05 AI` added 2026-09-07; `.06–.08` are expansion-reserved).
 4. **`A0` categories are management.** The category ending in `0` manages the area
    (e.g. `10` manages area `10–19`).
 5. **Numbers are opaque.** `12.34` is an address, not arithmetic. Never renumber an

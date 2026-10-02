@@ -27,6 +27,6 @@
 ## Manual checks
 
 - Does every category have a `.00` index?
-- Are working slots the standard zeros (`.01` inbox, `.03` templates, `.04` links,
-  `.05` AI, `.09` archive)?
+- Are working slots the standard zeros (`.01` inbox, `.02` task & project
+  management, `.03` templates, `.04` links, `.05` AI, `.09` archive)?
 - Is anything numbered below an item?

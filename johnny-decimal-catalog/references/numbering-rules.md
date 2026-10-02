@@ -31,6 +31,16 @@ Three levels. There is no fourth. Below an item, folders are plain and unnumbere
 | `.06`, `.07`, `.08` | Reserved — do not use |
 | `.09` | Archive |
 
+The standard zeros repeat **verbatim** at every level: category `CC`, the
+area-management category `A0` (e.g. `10.04 Links for area 10-19`), and the
+system category `00`. When something belongs at a zero, prefer the most
+specific one that fits.
+
+Source of truth: <https://johnnydecimal.com/documentation/the-standard-zeros/>
+(fetched 2026-10-02). `.05 AI` was added to the spec on 2026-09-07. `.06–.08`
+are reserved for expansion — **do not use**. There is no `.08 Someday` in the
+current spec; that was an older draft/RFC.
+
 ## The `+` extension
 
 To note a child or a repeating item without a new segment, use `+`:
