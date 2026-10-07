@@ -17,6 +17,27 @@ Returns an `Update`. Poll `/read/GetUpdate` with its `id` until `status == "Comp
 
 Use `Get*ActionState` (`/read`) while waiting to see live per-resource booleans. The bundled `scripts/komodo_api.py ... execute <Type> --wait` does the `GetUpdate` polling for you and exits non-zero on failure.
 
+## Convention: recreate, don't just stop/restart
+
+**To apply a change, destroy and re-deploy — not stop/deploy.** Default:
+
+```
+DestroyStack  ->  DeployStack
+```
+
+`RestartStack` / `StopStack` + `StartStack` cycle the **existing** containers;
+they do not recreate them, so a changed bind-mounted file (e.g. `./config.yaml`)
+is never re-read and a config edit can silently take no effect. `DestroyStack`
+(containers removed; named volumes persist) followed by `DeployStack` guarantees
+a clean recreate that picks up the new file.
+
+- Use **destroy/deploy** whenever applying an edit to a stack's files or env.
+- `DeployStackIfChanged` is the lighter option when a full recreate isn't wanted.
+- Plain stop/start/restart is only for cycling processes when the container
+  definition is unchanged.
+- Caveat: `DestroyStack` releases containers (and any ephemeral state) while
+  named volumes persist — confirm the stack's data is volume-backed first.
+
 ## Execution catalog (by area)
 
 ### Stacks (`docker compose`)
@@ -79,6 +100,7 @@ curl -sS $CORE/read -H 'Content-Type: application/json' -H "X-Api-Key: $K" -H "X
 
 ## Safety
 
+- To apply a config/mount change, **recreate** (`DestroyStack` -> `DeployStack`); stop/restart won't reload a changed mounted file. See the convention above.
 - Destructive: `Destroy*`, `Delete*`, `Prune*`, `Stop*`, `Remove*`. Confirm with the user; never blanket-batch a wildcard you have not enumerated.
 - Execution results are asynchronous: a 200 only means *queued/started*. Always poll `GetUpdate`.
 - `GlobalAutoUpdate` can redeploy many resources at once; scope it or pass `skip_auto_update`.
