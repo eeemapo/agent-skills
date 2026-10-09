@@ -1,6 +1,6 @@
 ---
 name: komodo-ops
-description: Administer a Komodo (komo.do) Docker orchestration server exclusively through its JSON HTTP API. Use this skill to authenticate to Komodo Core with API keys, discover and read servers, swarms, stacks, deployments, builds, repos, procedures, actions, resource syncs, builders, alerters, users and containers; create, update, copy, rename and delete resources; trigger executions such as deploy, restart, stop, prune, build and sync and poll their Update results; query container/stack/deployment logs; manage terminal sessions; administer users, user groups, permissions, tags, providers, variables and API/onboarding keys; and trigger Core database backups and key rotation. Trigger whenever the user mentions Komodo, komo.do, Komodo Core or Periphery, or asks to deploy or manage containers across servers through Komodo — even if they do not say "Komodo" explicitly.
+description: Administer a Komodo (komo.do) Docker orchestration server with the pi-komodo extension's `komodo_*` tools (JSON HTTP API underneath). Use this skill to authenticate to Komodo Core with API keys, discover and read servers, swarms, stacks, deployments, builds, repos, procedures, actions, resource syncs, builders, alerters, users and containers; create, update, copy, rename and delete resources; trigger executions such as deploy, restart, stop, prune, build and sync and poll their Update results; query container/stack/deployment logs; manage terminal sessions; administer users, user groups, permissions, tags, providers, variables and API/onboarding keys; and trigger Core database backups and key rotation. Trigger whenever the user mentions Komodo, komo.do, Komodo Core or Periphery, or asks to deploy or manage containers across servers through Komodo — even if they do not say "Komodo" explicitly.
 license: MIT
 compatibility: Requires network access to a running Komodo Core instance and an API key/secret (or a user JWT). No local CLI, Docker socket, or database access is required.
 metadata:
@@ -16,7 +16,7 @@ Administer a Komodo **Core** instance — a Docker build/deploy orchestrator man
 ## How to use this skill
 
 1. Read the matching pattern from the Quick Reference table below.
-2. If you do not yet have working credentials, start with `patterns/authenticate.md`.
+2. Call the `komodo_*` tools — see [`patterns/use-the-extension.md`](patterns/use-the-extension.md); if credentials don't resolve, see `patterns/authenticate.md`.
 3. For the exact wire format and error shape, load `references/http-contract.md`.
 4. For the endpoint you need, load `references/endpoint-catalog.md`.
 5. For field-level request/response shapes, Core serves interactive OpenAPI docs at `GET <core-host>/docs` (and the generated TypeScript types at `/client/types.d.ts`).
@@ -38,8 +38,8 @@ Administer a Komodo **Core** instance — a Docker build/deploy orchestrator man
 | Shared schemas: queries, targets, Update, partial config | [`references/schemas-and-queries.md`](references/schemas-and-queries.md) | Field meanings |
 | Core maintenance, backups, key rotation, deployment model | [`references/core-operations.md`](references/core-operations.md) | What the API can/cannot do |
 | Instance-specifics from the knowledge base | [`references/kb-hook.md`](references/kb-hook.md) | Local note addresses |
-| Sending any request, waiting on executions | [`scripts/komodo_api.py`](scripts/komodo_api.py) | Auth + JSON + Update polling |
-| Bootstrapping a scoped service user + key | [`scripts/scoped_service_user.py`](scripts/scoped_service_user.py) | Idempotent, dry-run |
+| Calling Komodo from an agent (the supported path) | [`patterns/use-the-extension.md`](patterns/use-the-extension.md) | `komodo_*` tools + credential wiring |
+| Raw HTTP (debugging / non-pi clients) | [`references/http-contract.md`](references/http-contract.md) | Wire format |
 
 ## The API in one paragraph
 
@@ -68,29 +68,20 @@ Credentials come only from the environment; topology is derived from the live AP
 
 - Base path: `$KB_ROOT` (default `~/notes/main`).
 - Notes use a Johnny Decimal address. For this deployment, homelab topology is **`14.11`** and networking is **`14.12`**: resolve with `find "${KB_ROOT:-$HOME/notes/main}" -iname '14.11*'`, then read the matching note.
-- Endpoint/keys come from `~/.config/komodo/komodo.env` (see [`patterns/authenticate.md`](patterns/authenticate.md)); notes record env var **names**, never secret values.
+- Endpoint/keys come from pi's `auth.json` `komodo` entry (see [`patterns/use-the-extension.md`](patterns/use-the-extension.md)); notes record env var **names**, never secret values.
 - If the KB is absent or an address is missing, proceed with live API discovery — never block on it.
 - Never write secrets, keys, or full credential values into the KB.
 
 See [`references/kb-hook.md`](references/kb-hook.md) for the scheme and note etiquette.
 
-## Bundled scripts
+## Tools (pi-komodo extension)
 
-Dependency-free helpers live in [`scripts/`](scripts/) (Python stdlib only; credentials via `KOMODO_HOST`, `KOMODO_API_KEY`, `KOMODO_API_SECRET`, or a `0600` file at `~/.config/komodo/komodo.env`).
+Administer Komodo through the **pi-komodo** extension's in-process `komodo_*` tools — no HTTP client, no git-synced scripts. Full surface, credential wiring, and examples: [`patterns/use-the-extension.md`](patterns/use-the-extension.md).
 
-- **[`scripts/komodo_api.py`](scripts/komodo_api.py)** — send any `{type, params}` request to a module and print JSON. `--wait` polls an execution's `Update` to `Complete` (exit 5 on failure), `--dry-run` prints the request without sending, `--output` writes to a file, `--insecure` allows self-signed TLS, and the `terminal` module streams PTY output. Deterministic exit codes: 0 ok, 2 usage, 3 no creds, 4 API error, 5 exec failed, 6 connection, 7 timeout.
-
-  ```bash
-  python3 scripts/komodo_api.py read ListStacks '{"limit":0}'
-  python3 scripts/komodo_api.py write UpdateStack '{"id":"my-stack","config":{"branch":"release"}}'
-  python3 scripts/komodo_api.py execute DeployStack '{"stack":"my-stack"}' --wait
-  ```
-
-- **[`scripts/scoped_service_user.py`](scripts/scoped_service_user.py)** — idempotently create/reuse a service user, apply base (`UpdatePermissionOnResourceType`) and per-target (`UpdatePermissionOnTarget`) permissions, and mint an API key (a same-named key is reused, not re-created). Supports `--dry-run` and `--permissions @file`.
-
-  ```bash
-  python3 scripts/scoped_service_user.py --username deploy-bot --permissions @perms.json --dry-run
-  ```
+- **Credentials:** pi `auth.json` `komodo` entry (`type: api_key`, with `key`/`apiSecret`/`url` values that may be leading-`!command` refs, e.g. to the 1Password Connect helper) → env `KOMODO_*` → `KOMODO_*_FILE` → config file. `auth.json` wins; **restart pi** after rotating a key.
+- **Naming:** `komodo_<resource>_<verb>` — reads `_list`/`_info`, writes `_apply`/`_delete`, actions `_action` (returns the finished `Update`). Create service users/keys with `komodo_user_*` (e.g. `komodo_user_create_api_key`).
+- **Guardrails:** destructive tools confirm via pi's dialog and fail closed headless unless `MCP_CONFIRM_FALLBACK=allow`; `KOMODO_PI_EXPOSURE` / `MCP_TOOLS_*` prune the surface (exclude `komodo_exec` unless intended).
+- **Verify:** `komodo_health_check` → `configured: true, healthy: true`.
 
 ## Safety rules (read before destructive work)
 

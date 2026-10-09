@@ -22,24 +22,24 @@ curl -sS https://komodo.example.com/read \
   -d '{"type":"GetCoreInfo","params":{}}'
 ```
 
-The bundled `scripts/komodo_api.py` wraps this: it reads the same env vars, posts `{type, params}`, and prints JSON.
+Agents normally call the pi-komodo extension's `komodo_*` tools, which send these headers for you — see [`patterns/use-the-extension.md`](use-the-extension.md). For raw HTTP, use `curl` as above.
 
 ### Credential storage
 
-Store the endpoint and keys in a `0600` file rather than exporting them globally:
+Agents should reference the key from pi's `auth.json` rather than exporting it globally —
+the `komodo` entry with leading-`!command` values keeps the secret in 1Password Connect:
 
-```bash
-install -d -m 700 ~/.config/komodo
-install -m 600 /dev/null ~/.config/komodo/komodo.env
-cat > ~/.config/komodo/komodo.env <<'EOF'
-KOMODO_HOST="https://komo.example.com"
-KOMODO_API_KEY="K_..."
-KOMODO_API_SECRET="S_..."
-EOF
+```json
+{ "komodo": { "type": "api_key",
+  "key": "!/path/to/op-read.sh op://HL-OPS/komodo-key/credential",
+  "apiSecret": "!/path/to/op-read.sh op://HL-OPS/komodo-key/secret",
+  "url": "https://komo.example.com" } }
 ```
 
-The scripts auto-load that file (override with `KOMODO_ENV_FILE`), so agents need no shell rc;
-existing environment variables take precedence. Never commit this file or echo its contents.
+Plain envs still work for non-pi clients: `KOMODO_URL` (alias `KOMODO_HOST`),
+`KOMODO_API_KEY`, `KOMODO_API_SECRET`; or a `0600` file at `~/.config/komodo/komodo.env`
+(override with `KOMODO_ENV_FILE`). **auth.json wins** over these. Never commit a
+credential or echo its contents.
 
 ## 2. Confirm identity and permissions
 

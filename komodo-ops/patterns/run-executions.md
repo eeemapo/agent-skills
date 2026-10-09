@@ -15,7 +15,7 @@ Returns an `Update`. Poll `/read/GetUpdate` with its `id` until `status == "Comp
 {"type":"GetUpdate","params":{"id":"<update-id>"}}
 ```
 
-Use `Get*ActionState` (`/read`) while waiting to see live per-resource booleans. The bundled `scripts/komodo_api.py ... execute <Type> --wait` does the `GetUpdate` polling for you and exits non-zero on failure.
+Use `Get*ActionState` (`/read`) while waiting to see live per-resource booleans. The pi-komodo extension's `komodo_*_action` tools poll `GetUpdate` internally and return the finished `Update` — see `patterns/use-the-extension.md`.
 
 ## Convention: recreate, don't just stop/restart
 

@@ -31,8 +31,8 @@ An address resolves to the folder/note whose name starts with that number.
 | Homelab topology (hosts, roles, Komodo Core) | `14.11` |
 | Homelab networking (subnets, DNS, VPN) | `14.12` |
 
-The vault root is `~/notes/main`; Komodo endpoint/credentials live in
-`~/.config/komodo/komodo.env`. Notes record env var **names**, never values.
+The vault root is `~/notes/main`; Komodo endpoint/credentials live in pi's
+`auth.json` `komodo` entry. Notes record env var **names**, never values.
 
 ## Reading and writing notes
 
