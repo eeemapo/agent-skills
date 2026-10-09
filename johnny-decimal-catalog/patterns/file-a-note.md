@@ -8,6 +8,8 @@
 - Belongs to an existing item → that item's folder, as a plain child.
 - Needs to be grouped inside an item → a **plain, unnumbered** subfolder.
 - New subject with no item → create an ID first (`patterns/create-id.md`).
+- Finished, raw, or superseded (journal, decision record, completed item) → the
+  archive `AC.09/` (see `patterns/use-the-archive.md`).
 
 ## Steps
 

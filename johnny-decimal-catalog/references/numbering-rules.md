@@ -36,6 +36,11 @@ area-management category `A0` (e.g. `10.04 Links for area 10-19`), and the
 system category `00`. When something belongs at a zero, prefer the most
 specific one that fits.
 
+`.09` is the **archive** — an append-only evidence layer (raw journals, decision
+records, completed items, superseded snapshots), not a knowledge layer. Synthesise
+the durable facts into the owning `CC.NN` note before filing there. See
+`patterns/use-the-archive.md`.
+
 Source of truth: <https://johnnydecimal.com/documentation/the-standard-zeros/>
 (fetched 2026-10-02). `.05 AI` was added to the spec on 2026-09-07. `.06–.08`
 are reserved for expansion — **do not use**. There is no `.08 Someday` in the
