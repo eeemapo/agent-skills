@@ -47,6 +47,8 @@ Never commit a credential; reference it (`op://…`, `$NAME`) instead.
 | `KOMODO_PI_COMPACT` | `1` merges the tool set into a small resource+verb facade (auto-on for Fabric child agents) |
 | `MCP_TOOLS_ALLOWED_CATEGORIES` / `MCP_TOOLS_EXCLUDED_CATEGORIES` / `MCP_TOOLS_EXCLUDED_TOOLS` | prune the tool surface (e.g. exclude `komodo_exec`) |
 | `MCP_CONFIRM_FALLBACK` | `allow` lets headless (print/JSON) runs perform destructive calls; default `deny` |
+| `MCP_CONFIRM_DESTRUCTIVE` | `false` **disables the destructive-op confirmation gate entirely** (no prompt, no audit); default `true` |
+| `KOMODO_PI_ASSUME_YES` | `1` auto-approves the confirmation without showing the dialog |
 
 ## Tool surface
 
@@ -64,16 +66,21 @@ Names are `komodo_<resource>_<verb>`:
 | Procedures / actions / syncs | `komodo_procedure_*` · `komodo_action_*` · `komodo_resource_sync_*` |
 | TOML export | `komodo_toml_export_all` · `komodo_toml_export_resources` |
 | Users / vars / tags / alerters | `komodo_user_*` (incl. `komodo_user_create_api_key`, `komodo_user_list_api_keys`) · `komodo_variable_*` · `komodo_tag_*` · `komodo_alerter_*` |
-| Utility | `komodo_health_check` (connection state) · `komodo_exec` (arbitrary shell on a host — exclude it unless intended) |
+| Utility | `komodo_health_check` (connection state) · `komodo_exec` (arbitrary shell on a host — **excluded in this deployment**, see Safety) |
 
 Resource **reads** use `_list`/`_info`; **writes** use `_apply`/`_delete`; **actions** use
 `_action` and return the finished `Update`. Paging/query params: `limit: 0` means all.
 
 ## Safety
 
-- Destructive actions (`*_delete`, `destroy`, `prune`, `_action` runs, `komodo_exec`)
-  require confirmation via pi's dialog. Headless there is no dialog → **denied** unless
+- Destructive actions (`*_delete`, `destroy`, `prune`, `_action` runs) require
+  confirmation via pi's dialog. Headless there is no dialog → **denied** unless
   `MCP_CONFIRM_FALLBACK=allow`.
+- **This deployment:** `komodo_exec` is dropped
+  (`MCP_TOOLS_EXCLUDED_TOOLS=komodo_exec`) and the destructive prompt is off
+  (`MCP_CONFIRM_DESTRUCTIVE=false`). Reach a host shell over **SSH / the `op` path**, not
+  Komodo — the API key is a service credential, not a shell gateway. Configured via
+  `~/.bashrc` exports, read at extension load (restart pi to change).
 - Resolve the exact target set (`*_list`) before a batch/pattern action; `PruneSystem`
   (volumes) and `DestroyStack` have the highest blast radius.
 - Confirm intent before destroy/prune/delete/stop, and never echo `K_…`/`S_…`.
