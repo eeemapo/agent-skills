@@ -8,47 +8,69 @@ debugging and non-pi clients.
 
 ## Credentials
 
-Resolved by the extension, highest priority first:
+Credentials come from pi's **`auth.json`** — the `komodo` entry in
+`$PI_CODING_AGENT_DIR/auth.json` (default `~/.pi/agent/auth.json`). That is the single
+origin; there are **no environment variables**. It must be a valid pi credential object
+(`type: "api_key"`), with the Komodo extras alongside:
 
-1. **pi `auth.json`** — the `komodo` entry in `$PI_CODING_AGENT_DIR/auth.json`
-   (default `~/.pi/agent/auth.json`). This is the authoritative source. It must be a
-   valid pi credential object (`type: "api_key"`), with the Komodo extras alongside:
+```json
+{
+  "komodo": {
+    "type": "api_key",
+    "key": "!/home/sysops/.pi/agent/op-read.sh op://HL-OPS/komodo-key/credential",
+    "apiSecret": "!/home/sysops/.pi/agent/op-read.sh op://HL-OPS/komodo-key/secret",
+    "url": "https://komodo.armadillo-hops.ts.net"
+  }
+}
+```
 
-   ```json
-   {
-     "komodo": {
-       "type": "api_key",
-       "key": "!/home/sysops/.pi/agent/op-read.sh op://HL-OPS/komodo-key/credential",
-       "apiSecret": "!/home/sysops/.pi/agent/op-read.sh op://HL-OPS/komodo-key/secret",
-       "url": "https://komodo.armadillo-hops.ts.net"
-     }
-   }
-   ```
-
-   Any value may be a literal, a `$NAME`/`${NAME}` env reference, or a leading
-   **`!command`** whose trimmed stdout is used — so secrets stay in 1Password (via
-   Connect) and never land on disk. Values are resolved **once per pi process**:
-   **restart pi** after rotating a key. (`type`/`key` must be present or pi itself
-   rejects the file; extra keys such as `url`/`apiSecret` are ignored by pi and read by
-   the extension.)
-
-2. **Environment** — `KOMODO_URL` (alias `KOMODO_HOST`), `KOMODO_API_KEY` +
-   `KOMODO_API_SECRET`, or `KOMODO_USERNAME`/`KOMODO_PASSWORD`, or `KOMODO_JWT_TOKEN`.
-3. **Docker-secret files** — `KOMODO_*_FILE` paths.
-4. **Config file `[komodo]`** section (framework config).
+Any value may be a literal, a `$NAME`/`${NAME}` reference, or a leading **`!command`**
+whose trimmed stdout is used — so secrets stay in 1Password (via Connect) and never land
+on disk. Values are resolved **once per pi process**: **restart pi** after rotating a key.
+(`type`/`key` must be present or pi itself rejects the file; extra keys such as
+`url`/`apiSecret` are ignored by pi and read by the extension.)
 
 Never commit a credential; reference it (`op://…`, `$NAME`) instead.
 
-## Configuration knobs
+## Behaviour configuration (settings.json)
 
-| Variable | Meaning |
+Behaviour is a **`komodo` block in `~/.pi/agent/settings.json`**, read via
+`pi.getSettings()` — no environment variables. All keys optional; absent keys keep
+defaults:
+
+```json
+{ "komodo": {
+    "exposure": "direct",
+    "compact": false,
+    "assumeYes": false,
+    "confirmDestructive": true,
+    "confirmFallback": "deny",
+    "confirmRemember": true,
+    "confirmTimeout": "5m",
+    "allowedCategories": [],
+    "excludedCategories": [],
+    "excludedTools": ["komodo_exec"],
+    "resourceTtlInfo": "15m",
+    "resourceTtlLogs": "2m",
+    "resourceMaxEntries": 1000,
+    "apiTimeout": "30s"
+} }
+```
+
+| Key | Meaning |
 |---|---|
-| `KOMODO_PI_EXPOSURE` | `direct` (default) · `codemode` · `deferred` · `model-only` · `hidden` |
-| `KOMODO_PI_COMPACT` | `1` merges the tool set into a small resource+verb facade (auto-on for Fabric child agents) |
-| `MCP_TOOLS_ALLOWED_CATEGORIES` / `MCP_TOOLS_EXCLUDED_CATEGORIES` / `MCP_TOOLS_EXCLUDED_TOOLS` | prune the tool surface (e.g. exclude `komodo_exec`) |
-| `MCP_CONFIRM_FALLBACK` | `allow` lets headless (print/JSON) runs perform destructive calls; default `deny` |
-| `MCP_CONFIRM_DESTRUCTIVE` | `false` **disables the destructive-op confirmation gate entirely** (no prompt, no audit); default `true` |
-| `KOMODO_PI_ASSUME_YES` | `1` auto-approves the confirmation without showing the dialog |
+| `exposure` | `direct` (default) · `model-only` · `codemode` · `deferred` · `hidden` |
+| `compact` | merge the tool set into a small resource+verb facade (defaults on for Fabric child agents) |
+| `assumeYes` | auto-approve destructive confirmations (no dialog) |
+| `confirmDestructive` | `false` disables the destructive-op confirmation gate entirely |
+| `confirmFallback` | `allow` \| `deny` — behaviour when the client can't prompt (default `deny`) |
+| `confirmRemember` | remember an accepted confirmation for the session (default `true`) |
+| `confirmTimeout` | how long to wait for a confirmation (default `5m`) |
+| `allowedCategories` / `excludedCategories` / `excludedTools` | prune the tool surface (e.g. exclude `komodo_exec`) |
+| `resourceTtlInfo` / `resourceTtlLogs` / `resourceMaxEntries` / `apiTimeout` | registry TTLs + API timeout |
+
+`PI_FABRIC_AGENT_NAME` (set by Fabric for child agents) is a runtime marker, not config —
+it defaults `compact`/`assumeYes` on for headless children.
 
 ## Tool surface
 
@@ -75,12 +97,12 @@ Resource **reads** use `_list`/`_info`; **writes** use `_apply`/`_delete`; **act
 
 - Destructive actions (`*_delete`, `destroy`, `prune`, `_action` runs) require
   confirmation via pi's dialog. Headless there is no dialog → **denied** unless
-  `MCP_CONFIRM_FALLBACK=allow`.
-- **This deployment:** `komodo_exec` is dropped
-  (`MCP_TOOLS_EXCLUDED_TOOLS=komodo_exec`) and the destructive prompt is off
-  (`MCP_CONFIRM_DESTRUCTIVE=false`). Reach a host shell over **SSH / the `op` path**, not
-  Komodo — the API key is a service credential, not a shell gateway. Configured via
-  `~/.bashrc` exports, read at extension load (restart pi to change).
+  `confirmFallback: "allow"` (settings.json).
+- **This deployment:** `komodo_exec` is dropped (`"excludedTools": ["komodo_exec"]`) and
+  the destructive prompt is off (`"confirmDestructive": false`) in
+  `~/.pi/agent/settings.json`. Reach a host shell over **SSH / the `op` path**, not
+  Komodo — the API key is a service credential, not a shell gateway. Settings are read at
+  extension load; `pi.getSettings()` changes apply on the next pi restart.
 - Resolve the exact target set (`*_list`) before a batch/pattern action; `PruneSystem`
   (volumes) and `DestroyStack` have the highest blast radius.
 - Confirm intent before destroy/prune/delete/stop, and never echo `K_…`/`S_…`.
