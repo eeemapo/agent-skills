@@ -5,9 +5,16 @@
 # usage: notify.sh <verb> [args]
 set -euo pipefail
 
-: "${BARK_URL:?set BARK_URL (e.g. https://bark.example.invalid)}"
+: "${BARK_URL:?set BARK_URL (e.g. bark.example.invalid or https://bark.example.invalid)}"
 : "${BARK_KEY:?set BARK_KEY (the Bark device key)}"
 APPRISE_URL="${APPRISE_URL:-}"
+
+# The vault stores these hosts WITHOUT a scheme. Accept either form so that a
+# missing "https://" cannot silently become a port-80 connection failure.
+case "$BARK_URL" in http://*|https://*) ;; *) BARK_URL="https://$BARK_URL" ;; esac
+BARK_URL="${BARK_URL%/}"
+case "$APPRISE_URL" in ""|http://*|https://*) ;; *) APPRISE_URL="https://$APPRISE_URL" ;; esac
+APPRISE_URL="${APPRISE_URL%/}"
 
 usage() {
   cat >&2 <<'EOF'

@@ -45,12 +45,13 @@ Two paths reach the same iPhone/iPad: **Bark** (direct APNs push) and **Apprise*
 
 | Variable | Required | Where it comes from |
 |----------|----------|---------------------|
-| `BARK_URL` | yes | the **`server` field** of the HL-OPS `bark` item — prefix it with `https://` |
+| `BARK_URL` | yes | the **`server` field** of the HL-OPS `bark` item — pass it as-is; the script adds `https://` if absent |
 | `BARK_KEY` | yes | the **`credential` field** of the same item (the only credential Bark uses) |
 | `APPRISE_URL` | for `apprise` | the Apprise host from the notifications stack — there is **no** vault item for it |
 
 Only `BARK_KEY` is a secret; both URLs are ordinary config, so passing them in the
-environment is fine. The `https://` scheme is **not** part of the stored value — add it.
+environment is fine. The `https://` scheme is **not** part of the stored value; the script adds
+  it if missing, so pass the field through unchanged.
 
 ## Gotchas
 
