@@ -18,9 +18,9 @@ the deterministic work is in [`scripts/freshrss.sh`](scripts/freshrss.sh).
 
 ## How to use this skill
 
-1. Supply configuration from the environment (see **Configuration**). The
-   credential source is out of scope for this skill — wherever the credential
-   lives, resolve it into `FRESHRSS_API_PASSWORD` without echoing it.
+1. Resolve all three variables from the HL-OPS item `FreshRSS` in one
+   `vault_run` (see **Configuration**) — the item carries the base URL *and* the
+   credential, so there is nothing to supply by hand.
 2. Run a verb as a program (do **not** `source` it):
    `bash <skill-dir>/scripts/freshrss.sh {whoami|subscriptions|tags|stream}`
    (absolute path — a bare `scripts/` path fails as “not found”, which is a
@@ -54,15 +54,24 @@ the deterministic work is in [`scripts/freshrss.sh`](scripts/freshrss.sh).
 
 Resolve everything from the environment; never hardcode.
 
-| Variable | Meaning |
-|---|---|
-| `FRESHRSS_BASE_URL` | Base URL of the FreshRSS instance, e.g. `https://<host>` |
-| `FRESHRSS_USER` | FreshRSS username |
-| `FRESHRSS_API_PASSWORD` | The account **API password** (see Gotchas) |
+| Variable | Vault field | Meaning |
+|---|---|---|
+| `FRESHRSS_BASE_URL` | `base_url` | Base URL of the instance, **with** scheme (`https://…`) |
+| `FRESHRSS_USER` | `username` | FreshRSS username |
+| `FRESHRSS_API_PASSWORD` | `API Key` | the account **API password** (see Gotchas) |
 
-`FRESHRSS_BASE_URL` is **not** a credential and is **not** a field in the vault item
-— take it from the task or the host inventory. Resolve only the credential
-(`username`, `API Key`) from the vault.
+One `vault_run` supplies all three — the item carries the URL as well as the
+credential, so no variable comes from the task text:
+
+    await extensions.vault_run({
+      "item": "FreshRSS",
+      "fields": [{"name": "FRESHRSS_BASE_URL", "field": "base_url"},
+                 {"name": "FRESHRSS_USER", "field": "username"},
+                 {"name": "FRESHRSS_API_PASSWORD", "field": "API Key"}],
+      "command": "bash /home/sysops/repos/agent-skills/service-freshrss/scripts/freshrss.sh subscriptions"})
+
+`base_url` already includes `https://` — do not add or strip a scheme. The item
+also carries a `password` field: that is the **login** password and yields 401.
 
 ## Gotchas
 
