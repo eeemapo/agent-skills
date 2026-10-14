@@ -86,6 +86,8 @@ Administer Komodo through the **pi-komodo** extension's in-process `komodo_*` to
 ## Safety rules (read before destructive work)
 
 - Confirm intent before **destroy / prune / delete / stop** requests. They are irreversible on the target host.
+- **Never `RestartStack` / `StopStack`+`StartStack` a stack whose services share a Tailscale sidecar namespace** (`network_mode: service:ts`). The sidecar comes back but the companions do **not** rejoin its netns, and the stack goes dark on the tailnet. Recreate instead: `DestroyStack` -> `DeployStack` — even when the intent is only "reload the config".
+- **Never restart/recreate `litellm` (MCO) mid-task.** It is the gateway this agent's own `litellm/*` model calls travel through, so restarting it severs the agent's own inference route; a failed restart leaves the session unable to call any model at all. Treat it as load-bearing — plan with the user.
 - Executions are asynchronous and can affect many resources at once (batch executions accept wildcard/regex patterns). Resolve the exact target set first with `/read/List*` and `-f`-style queries, then execute.
 - `PruneSystem` removes volumes; `DestroyStack`/`DestroyDeployment` remove containers. Treat both as high blast-radius.
 - Database **restore/prune/copy are not in the API** — only backup (`/execute/BackupCoreDatabase`). Do not claim to restore the Core database via the API; that requires the CLI against MongoDB. See `references/core-operations.md`.

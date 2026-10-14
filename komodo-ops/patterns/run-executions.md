@@ -38,6 +38,26 @@ a clean recreate that picks up the new file.
 - Caveat: `DestroyStack` releases containers (and any ephemeral state) while
   named volumes persist — confirm the stack's data is volume-backed first.
 
+### Never stop/start/restart a stack with a Tailscale sidecar
+
+If the compose file uses `network_mode: service:ts`, `RestartStack` and `StopStack`+`StartStack` break the
+companions: the sidecar returns but the other containers do **not** rejoin the shared network namespace, so
+the stack is unreachable on the tailnet while every container still reports *healthy*. **Recreate only**
+(`DestroyStack` -> `DeployStack`).
+
+### Never restart the stack that carries your own route
+
+`litellm` is the gateway this agent's own `litellm/*` model calls go through. Restarting or recreating it
+mid-task severs the agent's own inference path, and a failed restart leaves the session unable to call any
+model. Treat it as load-bearing: plan the outage with the user and prefer drive-it-by-hand (`destroy` ->
+`deploy`) over any restart verb.
+
+### Verify the change actually loaded
+
+A recreate can race the repo sync — the container may start *before* the edited file lands, then serve
+stale config while looking perfectly healthy. After recreating, prove the change took effect **through the
+service's own interface** (e.g. `GET /v1/models` on the gateway), never by checking that the file exists.
+
 ## Execution catalog (by area)
 
 ### Stacks (`docker compose`)
