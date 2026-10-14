@@ -43,15 +43,14 @@ Two paths reach the same iPhone/iPad: **Bark** (direct APNs push) and **Apprise*
 
 ## Configuration
 
-| Variable | Required | Meaning |
-|----------|----------|---------|
-| `BARK_URL` | yes | Bark server base, e.g. `https://bark.example.invalid` |
-| `BARK_KEY` | yes | Bark device key (the only credential Bark uses) |
-| `APPRISE_URL` | for `apprise` | Apprise base, e.g. `https://notifications.example.invalid` |
+| Variable | Required | Where it comes from |
+|----------|----------|---------------------|
+| `BARK_URL` | yes | the **`server` field** of the HL-OPS `bark` item — prefix it with `https://` |
+| `BARK_KEY` | yes | the **`credential` field** of the same item (the only credential Bark uses) |
+| `APPRISE_URL` | for `apprise` | the Apprise host from the notifications stack — there is **no** vault item for it |
 
-The `*_URL` values are **not** credentials and are **not** fields in the vault item
-— take them from the task or the host inventory. Resolve only `BARK_KEY` from
-the vault.
+Only `BARK_KEY` is a secret; both URLs are ordinary config, so passing them in the
+environment is fine. The `https://` scheme is **not** part of the stored value — add it.
 
 ## Gotchas
 
