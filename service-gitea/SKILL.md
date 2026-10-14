@@ -58,13 +58,21 @@ in [`scripts/gitea.sh`](scripts/gitea.sh).
 
 ## Configuration
 
-| Variable | Required | Meaning |
-|----------|----------|---------|
-| `GITEA_URL` | yes | Base URL, e.g. `https://gitea.example.invalid` (no trailing `/api`) |
-| `GITEA_TOKEN` | yes | Gitea API token |
+| Variable | Vault field | Meaning |
+|----------|-------------|---------|
+| `GITEA_URL` | `base_url` | Base URL, **with** scheme (no trailing `/api`) |
+| `GITEA_TOKEN` | `credential` | Gitea API token |
 
-`GITEA_URL` is **not** a credential and is **not** a field in the vault item — take
-it from the task or the host inventory. Resolve only the token from the vault.
+One `vault_run` supplies both — the item carries the URL as well as the token, so
+no variable comes from the task text:
+
+    await extensions.vault_run({
+      "item": "gitea-api",
+      "fields": [{"name": "GITEA_URL", "field": "base_url"},
+                 {"name": "GITEA_TOKEN", "field": "credential"}],
+      "command": "bash /home/sysops/repos/agent-skills/service-gitea/scripts/gitea.sh repos"})
+
+`base_url` already includes `https://` — do not add or strip a scheme.
 
 Reads are safe by default. **Writes refuse to run without `--yes`** — that is an
 explicit approval token, not a formality; pass it only once the user has approved

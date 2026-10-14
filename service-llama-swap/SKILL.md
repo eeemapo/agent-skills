@@ -48,13 +48,22 @@ the endpoint catalog is in [`references/http-api.md`](references/http-api.md).
 
 ## Configuration
 
-| Variable | Required | Meaning |
-|----------|----------|---------|
-| `LLAMA_SWAP_URL` | yes | Base URL, e.g. `https://llama-swap.example.invalid` |
-| `LLAMA_SWAP_KEY` | yes | API key (sent as `Authorization: Bearer …`) |
+| Variable | Vault field | Meaning |
+|----------|-------------|---------|
+| `LLAMA_SWAP_URL` | `base_url` | Base URL, **with** scheme |
+| `LLAMA_SWAP_KEY` | `credential` | API key (sent as `Authorization: Bearer …`) |
 
-`LLAMA_SWAP_URL` is **not** a credential and is **not** a field in the vault item —
-take it from the task or the host inventory. Resolve only the key from the vault.
+There is one vault item **per instance** — `llama-swap-lax`, `llama-swap-phx` — and
+each carries both fields, so a single `vault_run` supplies everything and nothing
+comes from the task text:
+
+    await extensions.vault_run({
+      "item": "llama-swap-lax",
+      "fields": [{"name": "LLAMA_SWAP_URL", "field": "base_url"},
+                 {"name": "LLAMA_SWAP_KEY", "field": "credential"}],
+      "command": "bash /home/sysops/repos/agent-skills/service-llama-swap/scripts/llama-swap.sh models"})
+
+`base_url` already includes `https://` — do not add or strip a scheme.
 
 Reads are safe by default. **Unloads refuse to run without `--yes`** — pass it only
 once the user has approved.
