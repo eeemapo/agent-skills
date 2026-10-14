@@ -13,7 +13,8 @@
       "./skill-validate",
       "./johnny-decimal-catalog",
       "./komodo-ops",
-      "./mcp-oauth-public-client"
+      "./mcp-oauth-public-client",
+      "./service-contract"
     ]
   }
 }
