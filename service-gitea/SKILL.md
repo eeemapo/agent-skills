@@ -22,7 +22,9 @@ in [`scripts/gitea.sh`](scripts/gitea.sh).
    credential source is out of scope — wherever the token lives, resolve it into
    `GITEA_TOKEN` **without echoing it**.
 2. Run a verb as a program (do **not** `source` it):
-   `bash scripts/gitea.sh <verb> [args]`.
+   `bash <skill-dir>/scripts/gitea.sh <verb> [args]`
+   (absolute path — a bare `scripts/` path fails as “not found”, which is a
+   **path** problem, not an authentication failure).
 3. If a verb fails, read **Gotchas** before changing anything.
 
 | Your task involves... | Read this file first | Why |

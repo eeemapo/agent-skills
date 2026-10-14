@@ -22,7 +22,9 @@ the deterministic work is in [`scripts/freshrss.sh`](scripts/freshrss.sh).
    credential source is out of scope for this skill — wherever the credential
    lives, resolve it into `FRESHRSS_API_PASSWORD` without echoing it.
 2. Run a verb as a program (do **not** `source` it):
-   `bash scripts/freshrss.sh {whoami|subscriptions|tags|stream}`.
+   `bash <skill-dir>/scripts/freshrss.sh {whoami|subscriptions|tags|stream}`
+   (absolute path — a bare `scripts/` path fails as “not found”, which is a
+   **path** problem, not an authentication failure).
 3. If the verb fails, read the **Gotchas** before changing anything.
 
 | Your task involves... | Read this file first | Why |

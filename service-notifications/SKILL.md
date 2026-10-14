@@ -21,7 +21,9 @@ Two paths reach the same iPhone/iPad: **Bark** (direct APNs push) and **Apprise*
 1. Supply configuration from the environment (see **Configuration**). Resolve the
    device key into `BARK_KEY` **without echoing it**.
 2. Run a verb as a program (do **not** `source` it):
-   `bash scripts/notify.sh <verb> [args]`.
+   `bash <skill-dir>/scripts/notify.sh <verb> [args]`
+   (absolute path — a bare `scripts/` path fails as “not found”, which is a
+   **path** problem, not an authentication failure).
 3. Keep messages short — these land on a phone lock screen.
 
 | Your task involves... | Read this file first | Why |

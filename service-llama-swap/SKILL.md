@@ -21,7 +21,9 @@ the endpoint catalog is in [`references/http-api.md`](references/http-api.md).
 1. Supply configuration from the environment (see **Configuration**). Resolve the
    key into `LLAMA_SWAP_KEY` **without echoing it**.
 2. Run a verb as a program (do **not** `source` it):
-   `bash scripts/llama-swap.sh <verb> [args]`.
+   `bash <skill-dir>/scripts/llama-swap.sh <verb> [args]`
+   (absolute path — a bare `scripts/` path fails as “not found”, which is a
+   **path** problem, not an authentication failure).
 3. If a verb fails, read **Gotchas** before changing anything.
 
 | Your task involves... | Read this file first | Why |
