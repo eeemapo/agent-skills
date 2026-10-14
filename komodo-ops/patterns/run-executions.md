@@ -47,10 +47,11 @@ the stack is unreachable on the tailnet while every container still reports *hea
 
 ### Never restart the stack that carries your own route
 
-`litellm` is the gateway this agent's own `litellm/*` model calls go through. Restarting or recreating it
-mid-task severs the agent's own inference path, and a failed restart leaves the session unable to call any
-model. Treat it as load-bearing: plan the outage with the user and prefer drive-it-by-hand (`destroy` ->
-`deploy`) over any restart verb.
+`litellm` is the gateway this agent's own `litellm/*` model calls go through. **A restart is the dangerous
+verb**: it leaves the stack in a state where the follow-up redeploy may not recover it, and it severs the
+agent's own inference route mid-turn. A plain **redeploy/recreate** is fine — the stack comes back — so
+prefer `DeployStack` (or destroy -> deploy) and *never* `RestartStack` on it. Plan the outage with the user
+and confirm the gateway's own API answers afterwards.
 
 ### Verify the change actually loaded
 
