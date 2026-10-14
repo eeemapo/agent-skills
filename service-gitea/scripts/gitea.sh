@@ -13,6 +13,7 @@ usage() {
 usage: gitea.sh <verb> [args]
   read (safe):
     version                          server version
+  --count                            with list verbs: print the number of entries
     whoami                           the authenticated user
     repos [owner]                    repositories (default: yours)
     repo <owner/repo>                one repository
@@ -54,12 +55,24 @@ while [ $# -gt 0 ]; do
     --body) BODY="${2:-}"; shift ;;
     --description) DESC="${2:-}"; shift ;;
     --private) PRIVATE=1 ;;
+    --count) COUNT=1 ;;
     *) positional+=("$1") ;;
   esac
   shift
 done
 
 json_escape() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+
+if [ "${COUNT:-0}" = "1" ]; then
+  # --count: counting belongs in the script. A caller that counts what it receives
+  # (or takes len() of a parsed payload) reports the wrong number, confidently.
+  case "$verb" in
+    repos|issues|pulls|branches|releases|runs) ;;
+    *) die "--count applies to list verbs: repos|issues|pulls|branches|releases|runs" ;;
+  esac
+  "$0" "$verb" ${positional[@]+"${positional[@]}"} | wc -l | tr -d ' '
+  exit 0
+fi
 
 case "$verb" in
   ""|-h|--help|help) usage; exit 0 ;;

@@ -70,6 +70,9 @@ once the user has approved.
 
 ## Gotchas
 
+- **Counting models? Use `--count`.** `models` and `running` accept it and print
+  the bare number. Do not count the list yourself: a line count and a parsed length
+  disagree with the truth in different ways.
 - **A model listed by `models` is not loaded.** Configuration ≠ residency. Use
   `running` to see what is actually in memory; `models` is the catalog.
 - **Loading is on demand.** Unloading is safe — the next request for that model

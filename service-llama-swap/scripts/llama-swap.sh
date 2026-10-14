@@ -18,6 +18,7 @@ usage: llama-swap.sh <verb> [args]
     running                currently loaded models and their state
     profiles               configured profiles + which is active
     logs [n]               last n lines of buffered logs (default 50)
+  --count  with models|running: print the entry count instead of the list
   write (require --yes):
     unload <model> --yes   unload one running model
     unload-all --yes       unload every running model
@@ -30,21 +31,26 @@ get() { curl -sS -f -H "$H" "$base/$1"; }
 post() { curl -sS -f -X POST -H "$H" "$base/$1"; }
 
 verb="${1:-}"; shift || true
-YES=0; MODEL=""; N=50
+YES=0; MODEL=""; N=50; COUNT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes) YES=1 ;;
+    --count) COUNT=1 ;;
     *) if [ -z "$MODEL" ]; then MODEL="$1"; else N="$1"; fi ;;
   esac
   shift
 done
 
+# --count: counting belongs in the script. A caller that counts the lines of the
+# payload, or takes len() of a parsed one, reports the wrong number — confidently.
+count_or() { if [ "$COUNT" = "1" ]; then wc -l | tr -d ' '; else cat; fi; }
+
 case "$verb" in
   ""|-h|--help|help) usage; exit 0 ;;
   health)   get health ;;
   version)  get api/version ;;
-  models)   get v1/models | jq -r '.data[] | "\(.id)\t\(.context_length // .context_window // "-")\t\([.capabilities // {} | to_entries[] | select(.value==true) | .key] | join(","))"' ;;
-  running)  get running | jq -r '.running[]? | "\(.model)\t\(.state)"' ;;
+  models)   get v1/models | jq -r '.data[] | "\(.id)\t\(.context_length // .context_window // "-")\t\([.capabilities // {} | to_entries[] | select(.value==true) | .key] | join(","))"' | count_or ;;
+  running)  get running | jq -r '.running[]? | "\(.model)\t\(.state)"' | count_or ;;
   profiles) get api/profiles ;;
   logs)     curl -sS -m 10 -H "$H" "$base/logs" | tail -n "${N:-50}" ;;
   unload)
