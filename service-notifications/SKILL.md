@@ -47,6 +47,10 @@ Two paths reach the same iPhone/iPad: **Bark** (direct APNs push) and **Apprise*
 | `BARK_KEY` | yes | Bark device key (the only credential Bark uses) |
 | `APPRISE_URL` | for `apprise` | Apprise base, e.g. `https://notifications.example.invalid` |
 
+The `*_URL` values are **not** credentials and are **not** fields in the vault item
+— take them from the task or the host inventory. Resolve only `BARK_KEY` from
+the vault.
+
 ## Gotchas
 
 - **These are not gated behind `--yes`** — unlike other service contracts — because

@@ -61,6 +61,9 @@ in [`scripts/gitea.sh`](scripts/gitea.sh).
 | `GITEA_URL` | yes | Base URL, e.g. `https://gitea.example.invalid` (no trailing `/api`) |
 | `GITEA_TOKEN` | yes | Gitea API token |
 
+`GITEA_URL` is **not** a credential and is **not** a field in the vault item — take
+it from the task or the host inventory. Resolve only the token from the vault.
+
 Reads are safe by default. **Writes refuse to run without `--yes`** — that is an
 explicit approval token, not a formality; pass it only once the user has approved
 the specific change.

@@ -51,6 +51,9 @@ the endpoint catalog is in [`references/http-api.md`](references/http-api.md).
 | `LLAMA_SWAP_URL` | yes | Base URL, e.g. `https://llama-swap.example.invalid` |
 | `LLAMA_SWAP_KEY` | yes | API key (sent as `Authorization: Bearer …`) |
 
+`LLAMA_SWAP_URL` is **not** a credential and is **not** a field in the vault item —
+take it from the task or the host inventory. Resolve only the key from the vault.
+
 Reads are safe by default. **Unloads refuse to run without `--yes`** — pass it only
 once the user has approved.
 

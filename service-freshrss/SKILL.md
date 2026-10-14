@@ -58,6 +58,10 @@ Resolve everything from the environment; never hardcode.
 | `FRESHRSS_USER` | FreshRSS username |
 | `FRESHRSS_API_PASSWORD` | The account **API password** (see Gotchas) |
 
+`FRESHRSS_BASE_URL` is **not** a credential and is **not** a field in the vault item
+— take it from the task or the host inventory. Resolve only the credential
+(`username`, `API Key`) from the vault.
+
 ## Gotchas
 
 - **Endpoint is `accounts/ClientLogin`**, not `accounts/Login`. The latter 404s.
