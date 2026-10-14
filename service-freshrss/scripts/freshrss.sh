@@ -28,6 +28,15 @@ call() { # GET (read)
   curl -sS -f -H "Authorization: GoogleLogin auth=$t" "$api/$1"
 }
 
+emit() { # emit <path> <jq-key> — full JSON, or just the entry count with --count
+  local path="$1" key="$2"
+  if [ "$count" = "1" ]; then
+    call "$path" | jq -r ".$key | length"
+  else
+    call "$path"
+  fi
+}
+
 post() { # POST (write); adds the per-session action token as T=
   local path="$1"; shift
   local t at; t=$(get_token) || exit 1
@@ -49,6 +58,7 @@ usage: freshrss.sh <verb> [args]
     auth | whoami | subscriptions | tags
     stream [streamId] [n]
     item <itemId>
+  --count  with subscriptions|tags|stream: print the number of entries, not JSON
   write (require --yes):
     mark-read <itemId> --yes | mark-unread <itemId> --yes
     star <itemId> --yes | unstar <itemId> --yes
@@ -60,16 +70,29 @@ EOF
 [ $# -ge 1 ] || { usage; exit 2; }
 verb="$1"; shift
 
+# --count: list verbs print the entry count instead of the payload. Counting
+# belongs here, not in the caller: the payload is an object, so a caller that
+# parses it and takes len() gets the number of KEYS (1), not the number of feeds.
+count=0
+args=()
+for a in "$@"; do
+  case "$a" in
+    --count) count=1;;
+    *) args+=("$a");;
+  esac
+done
+set -- ${args[@]+"${args[@]}"}
+
 case "$verb" in
   -h|--help) usage; exit 0;;
   auth) get_token >/dev/null || exit 1; echo "auth ok (token acquired)";;
   whoami) call "reader/api/0/user-info";;
-  subscriptions) call "reader/api/0/subscription/list?output=json";;
-  tags) call "reader/api/0/tag/list?output=json";;
+  subscriptions) emit "reader/api/0/subscription/list?output=json" subscriptions;;
+  tags) emit "reader/api/0/tag/list?output=json" tags;;
   stream)
     sid="${1:-user/-/state/com.google/reading-list}"; n="${2:-20}"
     enc=$(printf '%s' "$sid" | sed 's|/|%2F|g')
-    call "reader/api/0/stream/contents/$enc?output=json&n=$n";;
+    emit "reader/api/0/stream/contents/$enc?output=json&n=$n" items;;
   item)
     [ $# -ge 1 ] || { echo "item needs <itemId>" >&2; exit 2; }
     t=$(get_token) || exit 1

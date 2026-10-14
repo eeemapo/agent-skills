@@ -2,7 +2,7 @@
 name: service-freshrss
 description: Operate a FreshRSS server over its Google Reader API — authenticate and read feeds, subscriptions, tags, and articles. Use when authenticating to FreshRSS, listing or reading FreshRSS subscriptions/articles, syncing or marking items, or when an agent has FreshRSS credentials but cannot reproduce the exact request shape. Covers the ClientLogin handshake, the GoogleLogin auth header, the core read endpoints, and the credential-field trap (the API password is not the login password).
 license: MIT
-compatibility: Client-agnostic. Requires network access to a FreshRSS instance and a credential supplied via environment variables. Uses curl.
+compatibility: Client-agnostic. Requires network access to a FreshRSS instance and a credential supplied via environment variables. Uses curl and jq.
 metadata:
   version: "1.0"
   spec: Agent Skills 1.0
@@ -43,6 +43,7 @@ the deterministic work is in [`scripts/freshrss.sh`](scripts/freshrss.sh).
     scripts/freshrss.sh subscriptions          # subscribed feeds (JSON)
     scripts/freshrss.sh tags                   # tags/labels (JSON)
     scripts/freshrss.sh stream [id] [n]        # articles from a stream (JSON)
+    scripts/freshrss.sh subscriptions --count  # just the number of feeds
     scripts/freshrss.sh item <itemId>          # one article (JSON)
     # write (require --yes)
     scripts/freshrss.sh mark-read <id> --yes    | mark-unread <id> --yes
@@ -75,6 +76,10 @@ also carries a `password` field: that is the **login** password and yields 401.
 
 ## Gotchas
 
+- **Counting feeds or tags? Use `--count`.** `subscriptions` and `tags` return an
+  *object* (`{"subscriptions":[…]}`), so taking the length of the parsed payload
+  gives `1` (the number of keys), not the number of feeds. `subscriptions`, `tags`
+  and `stream` accept `--count` and print the bare number.
 - **Endpoint is `accounts/ClientLogin`**, not `accounts/Login`. The latter 404s.
 - **The form field is `Passwd`**, not `Password`. A `Password=` field yields 401.
 - **The credential is the API password, not the login password.** In FreshRSS it
