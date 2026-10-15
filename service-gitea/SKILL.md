@@ -67,6 +67,7 @@ One `vault_run` supplies both — the item carries the URL as well as the token,
 no variable comes from the task text:
 
     await extensions.vault_run({
+      "vault": "HL-SRV",
       "item": "gitea-api",
       "fields": [{"name": "GITEA_URL", "field": "base_url"},
                  {"name": "GITEA_TOKEN", "field": "credential"}],

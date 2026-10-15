@@ -17,8 +17,8 @@ origin; there are **no environment variables**. It must be a valid pi credential
 {
   "komodo": {
     "type": "api_key",
-    "key": "!/home/sysops/.pi/agent/op-read.sh op://HL-OPS/komodo-key/credential",
-    "apiSecret": "!/home/sysops/.pi/agent/op-read.sh op://HL-OPS/komodo-key/secret",
+    "key": "!/home/sysops/.pi/agent/komodo-read.sh op://HL-INF/komodo-key/credential",
+    "apiSecret": "!/home/sysops/.pi/agent/komodo-read.sh op://HL-INF/komodo-key/secret",
     "url": "https://komodo.armadillo-hops.ts.net"
   }
 }

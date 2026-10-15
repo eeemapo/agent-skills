@@ -31,8 +31,8 @@ the `komodo` entry with leading-`!command` values keeps the secret in 1Password 
 
 ```json
 { "komodo": { "type": "api_key",
-  "key": "!/path/to/op-read.sh op://HL-OPS/komodo-key/credential",
-  "apiSecret": "!/path/to/op-read.sh op://HL-OPS/komodo-key/secret",
+  "key": "!/path/to/op-read-infra.sh op://HL-INF/komodo-key/credential",
+  "apiSecret": "!/path/to/op-read-infra.sh op://HL-INF/komodo-key/secret",
   "url": "https://komo.example.com" } }
 ```
 

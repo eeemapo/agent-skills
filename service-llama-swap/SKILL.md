@@ -58,6 +58,7 @@ each carries both fields, so a single `vault_run` supplies everything and nothin
 comes from the task text:
 
     await extensions.vault_run({
+      "vault": "HL-SRV",
       "item": "llama-swap-lax",
       "fields": [{"name": "LLAMA_SWAP_URL", "field": "base_url"},
                  {"name": "LLAMA_SWAP_KEY", "field": "credential"}],

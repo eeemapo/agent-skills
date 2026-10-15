@@ -18,7 +18,7 @@ the deterministic work is in [`scripts/freshrss.sh`](scripts/freshrss.sh).
 
 ## How to use this skill
 
-1. Resolve all three variables from the HL-OPS item `FreshRSS` in one
+1. Resolve all three variables from the HL-SRV item `FreshRSS` in one
    `vault_run` (see **Configuration**) — the item carries the base URL *and* the
    credential, so there is nothing to supply by hand.
 2. Run a verb as a program (do **not** `source` it):
@@ -65,6 +65,7 @@ One `vault_run` supplies all three — the item carries the URL as well as the
 credential, so no variable comes from the task text:
 
     await extensions.vault_run({
+      "vault": "HL-SRV",
       "item": "FreshRSS",
       "fields": [{"name": "FRESHRSS_BASE_URL", "field": "base_url"},
                  {"name": "FRESHRSS_USER", "field": "username"},
