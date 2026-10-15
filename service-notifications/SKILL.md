@@ -45,7 +45,7 @@ Two paths reach the same iPhone/iPad: **Bark** (direct APNs push) and **Apprise*
 
 | Variable | Required | Where it comes from |
 |----------|----------|---------------------|
-| `BARK_URL` | yes | the **`base_url` field** of the HL-OPS `bark` item (full URL, with scheme). The item also has a legacy `server` field holding the same host without a scheme; prefer `base_url` |
+| `BARK_URL` | yes | the **`base_url` field** of the HL-OPS `bark` item (full URL, with scheme). The legacy bare-host `server` field was removed 2026-10-15; the item exposes `base_url` only |
 | `BARK_KEY` | yes | the **`credential` field** of the same item (the only credential Bark uses) |
 | `APPRISE_URL` | for `apprise` | the Apprise host from the notifications stack — there is **no** vault item for it |
 
