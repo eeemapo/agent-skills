@@ -70,7 +70,7 @@ credential, so no variable comes from the task text:
       "fields": [{"name": "FRESHRSS_BASE_URL", "field": "base_url"},
                  {"name": "FRESHRSS_USER", "field": "username"},
                  {"name": "FRESHRSS_API_PASSWORD", "field": "API Key"}],
-      "command": "bash /home/sysops/repos/agent-skills/service-freshrss/scripts/freshrss.sh subscriptions"})
+      "command": "bash /home/sysops/.pi/agent/skills/service-freshrss/scripts/freshrss.sh subscriptions"})
 
 `base_url` already includes `https://` — do not add or strip a scheme. The item
 also carries a `password` field: that is the **login** password and yields 401.
