@@ -64,7 +64,7 @@ Resolve everything from the environment; never hardcode.
 One `vault_run` supplies all three — the item carries the URL as well as the
 credential, so no variable comes from the task text:
 
-    await extensions.vault_run({
+    vault_run({
       "vault": "HL-SRV",
       "item": "FreshRSS",
       "fields": [{"name": "FRESHRSS_BASE_URL", "field": "base_url"},

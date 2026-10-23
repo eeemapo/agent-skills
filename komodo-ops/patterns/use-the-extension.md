@@ -60,7 +60,7 @@ defaults:
 | Key | Meaning |
 |---|---|
 | `exposure` | `direct` (default) · `model-only` · `codemode` · `deferred` · `hidden` |
-| `compact` | merge the tool set into a small resource+verb facade (defaults on for Fabric child agents) |
+| `compact` | merge the tool set into a small resource+verb facade (default off) |
 | `assumeYes` | auto-approve destructive confirmations (no dialog) |
 | `confirmDestructive` | `false` disables the destructive-op confirmation gate entirely |
 | `confirmFallback` | `allow` \| `deny` — behaviour when the client can't prompt (default `deny`) |
@@ -68,9 +68,6 @@ defaults:
 | `confirmTimeout` | how long to wait for a confirmation (default `5m`) |
 | `allowedCategories` / `excludedCategories` / `excludedTools` | prune the tool surface (e.g. exclude `komodo_exec`) |
 | `resourceTtlInfo` / `resourceTtlLogs` / `resourceMaxEntries` / `apiTimeout` | registry TTLs + API timeout |
-
-`PI_FABRIC_AGENT_NAME` (set by Fabric for child agents) is a runtime marker, not config —
-it defaults `compact`/`assumeYes` on for headless children.
 
 ## Tool surface
 

@@ -57,7 +57,7 @@ There is one vault item **per instance** — `llama-swap-lax`, `llama-swap-phx` 
 each carries both fields, so a single `vault_run` supplies everything and nothing
 comes from the task text:
 
-    await extensions.vault_run({
+    vault_run({
       "vault": "HL-SRV",
       "item": "llama-swap-lax",
       "fields": [{"name": "LLAMA_SWAP_URL", "field": "base_url"},
