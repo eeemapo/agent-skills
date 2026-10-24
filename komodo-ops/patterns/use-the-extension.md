@@ -1,112 +1,149 @@
-# Use the pi-komodo extension
+# The pi-komodo Extension
 
-**Use when** you need to administer Komodo. The supported interface is the **pi-komodo**
-extension — native in-process `komodo_*` tools (a fork of `komodo-mcp-server`, no MCP
-transport, no subprocess, no HTTP client, no bundled scripts). This skill documents *how*
-to drive it; [`references/http-contract.md`](http-contract.md) remains for raw-HTTP
-debugging and non-pi clients.
+**Use when** you need to know how the Komodo tools are wired: where credentials come from,
+which settings shape the surface, what the confirmation gate does, or how to verify the
+connection.
 
-## Credentials
+Short version: **credentials from pi's `auth.json`, behaviour from a `komodo` block in
+pi's `settings.json`, everything in-process.** There is no MCP transport, no subprocess, and
+no HTTP client to write.
 
-Credentials come from pi's **`auth.json`** — the `komodo` entry in
-`$PI_CODING_AGENT_DIR/auth.json` (default `~/.pi/agent/auth.json`). That is the single
-origin; there are **no environment variables**. It must be a valid pi credential object
-(`type: "api_key"`), with the Komodo extras alongside:
+## Two layers over one surface
+
+| Layer | Tools | Notes |
+|-------|-------|-------|
+| Typed | 91 `komodo_<domain>_<verb>` tools (`komodo_exec` is registered but excluded in this deployment) | the common path; `_action` polls the `Update` to completion |
+| Raw | `komodo_help` + `komodo_raw` | browse and call any of the 334 Core operations by name |
+
+Reads are `_list`/`_info`; writes are `_apply`/`_delete`; executions are `_action`
+(actions) or `_action action="run"` (builds, repos, procedures, actions, syncs).
+
+## Credentials (`auth.json`)
+
+Pi's agent config — `$PI_CODING_AGENT_DIR/auth.json` (default `~/.pi/agent/auth.json`) —
+holds a **`komodo`** entry. This is the single origin for the `pi-auth` key source; values
+may be literals, `$NAME` references, or a leading `!command` whose trimmed stdout is used
+(so the secret can stay in 1Password and never land on disk):
 
 ```json
 {
   "komodo": {
     "type": "api_key",
-    "key": "!/home/sysops/.pi/agent/komodo-read.sh op://HL-INF/komodo-key/credential",
-    "apiSecret": "!/home/sysops/.pi/agent/komodo-read.sh op://HL-INF/komodo-key/secret",
-    "url": "https://komodo.armadillo-hops.ts.net"
+    "apiKey": "!/path/to/op-read.sh op://HL-INF/komodo-key/credential",
+    "url": "https://komodo.example.ts.net"
   }
 }
 ```
 
-Any value may be a literal, a `$NAME`/`${NAME}` reference, or a leading **`!command`**
-whose trimmed stdout is used — so secrets stay in 1Password (via Connect) and never land
-on disk. Values are resolved **once per pi process**: **restart pi** after rotating a key.
-(`type`/`key` must be present or pi itself rejects the file; extra keys such as
-`url`/`apiSecret` are ignored by pi and read by the extension.)
+| Field (aliases) | Meaning |
+|---|---|
+| `apiKey` (`api_key`, `key`) | the `K_…` key. A single value holding `K_<id>:<secret>` is split automatically (an explicit `apiSecret` always wins) |
+| `apiSecret` (`api_secret`, `secret`) | the `S_…` half, when stored separately |
+| `jwtToken` (`jwt`) | a user JWT instead of a key pair |
+| `username` + `password` | login credentials |
+| `url` | Core base URL (falls back to `komodo.baseUrl` in settings) |
 
-Never commit a credential; reference it (`op://…`, `$NAME`) instead.
+`type` and `key`/`apiKey` must be present or pi itself rejects the file. **`auth.json`
+wins** over the environment fallback: `KOMODO_URL`, `KOMODO_API_KEY`, `KOMODO_API_SECRET`,
+`KOMODO_JWT_TOKEN`, `KOMODO_USERNAME`, `KOMODO_PASSWORD` and their `*_FILE` Docker-secret
+variants.
 
-## Behaviour configuration (settings.json)
+Never commit or echo a credential; reference it (`op://…`, `$NAME`) instead.
 
-Behaviour is a **`komodo` block in `~/.pi/agent/settings.json`**, read via
-`pi.getSettings()` — no environment variables. All keys optional; absent keys keep
-defaults:
+## Session keys — not an ambient credential
+
+The extension deliberately holds **no ambient credential**. It resolves a *session key*:
+
+- `/komodo status | load ops|srv|inf | clear` — human-gated, masked prompt. The key is held
+  **in memory for the session only** and cleared at shutdown. The model has no load/clear
+  path, so it can neither escalate nor strand itself.
+- `komodo.autoLoad` in settings loads the ambient `auth.json` key at session start with no
+  prompt (`"ops"` labels it `komodo:ops`; the label is cosmetic — Komodo enforces the real
+  authority of the account behind the key).
+- Key sources are generic (`command`, `file`, `env`, `inline`, `pi-auth`), so the extension
+  has no dependency on any particular secret provider.
+
+Inspect with `komodo_auth` (source, fingerprint, loaded time, permission summary) — see
+[`authenticate.md`](authenticate.md).
+
+## Behaviour (`settings.json`)
+
+A **`komodo` block** in `$PI_CODING_AGENT_DIR/settings.json` (default
+`~/.pi/agent/settings.json`), read directly at extension load — project-level settings and
+runtime overrides are not merged. All keys optional; absent keys keep defaults:
 
 ```json
 { "komodo": {
     "exposure": "direct",
     "compact": false,
+    "autoLoad": "ops",
     "assumeYes": false,
     "confirmDestructive": true,
     "confirmFallback": "deny",
-    "confirmRemember": true,
-    "confirmTimeout": "5m",
-    "allowedCategories": [],
-    "excludedCategories": [],
     "excludedTools": ["komodo_exec"],
-    "resourceTtlInfo": "15m",
-    "resourceTtlLogs": "2m",
-    "resourceMaxEntries": 1000,
-    "apiTimeout": "30s"
+    "baseUrl": "https://komodo.example.ts.net"
 } }
 ```
 
 | Key | Meaning |
 |---|---|
 | `exposure` | `direct` (default) · `model-only` · `codemode` · `deferred` · `hidden` |
-| `compact` | merge the tool set into a small resource+verb facade (default off) |
-| `assumeYes` | auto-approve destructive confirmations (no dialog) |
-| `confirmDestructive` | `false` disables the destructive-op confirmation gate entirely |
-| `confirmFallback` | `allow` \| `deny` — behaviour when the client can't prompt (default `deny`) |
-| `confirmRemember` | remember an accepted confirmation for the session (default `true`) |
-| `confirmTimeout` | how long to wait for a confirmation (default `5m`) |
-| `allowedCategories` / `excludedCategories` / `excludedTools` | prune the tool surface (e.g. exclude `komodo_exec`) |
-| `resourceTtlInfo` / `resourceTtlLogs` / `resourceMaxEntries` / `apiTimeout` | registry TTLs + API timeout |
+| `compact` | collapse the surface into a small resource+verb facade (default off) |
+| `autoLoad` | `true` \| `"ops"` \| `"srv"` \| `"inf"` — auto-load the ambient key at session start |
+| `assumeYes` | pre-authorise destructive confirmations (no dialog) |
+| `confirmDestructive` | `false` disables the confirmation gate entirely |
+| `confirmFallback` | `allow` \| `deny` (default) — what happens when the client cannot prompt |
+| `confirmTimeout` / `confirmRemember` | confirmation wait (default `5m`) and per-session memo |
+| `allowedCategories` / `excludedCategories` / `excludedTools` | prune the tool surface by category or tool name |
+| `apiTimeout` | per-request timeout (default `30s`) |
+| `baseUrl` | Core URL when `auth.json` carries none |
 
-## Tool surface
+Env equivalents exist and override: `KOMODO_*` (e.g. `KOMODO_CONFIRM_DESTRUCTIVE`,
+`KOMODO_TOOLS_*`, `KOMODO_SECRET_SCRUB_*`, `KOMODO_API_TIMEOUT_MS`). Suffix `*_FILE` reads a
+Docker secret.
 
-Names are `komodo_<resource>_<verb>`:
+**Prune by category**, which is more durable than by tool name: `config`, `server`, `swarm`,
+`container`, `terminal`, `stack`, `deployment`, `build`, `repo`, `procedure`, `action`,
+`alerter`, `user`, `variable`, `resource_sync`, `update`, `docker`, `builder`, `tag`, `toml`.
 
-| Group | Tools |
+## The confirmation gate
+
+Destructive actions (deletes, destroys, prunes, and raw operations whose risk class is
+`destructive`, `control-plane`, `terminal`, or `admin`) pass through
+`requireDestructiveConfirmation`, which **short-circuits on the first line**:
+
+```
+if (!config.KOMODO_CONFIRM_DESTRUCTIVE) return;
+```
+
+So the setting is a kill switch, and the fallback only matters once the gate is on:
+
+| `confirmDestructive` | Behaviour |
 |---|---|
-| Servers | `komodo_server_list` · `_info` · `_stats` · `_action` · `_apply` · `_delete` |
-| Swarms | `komodo_swarm_list` · `_info` · `_apply` · `_delete` · `_action` · `komodo_swarm_nodes_list` · `komodo_swarm_services_list` |
-| Stacks | `komodo_stack_list` · `_info` · `_action` (deploy/start/stop/restart/pause/destroy/prune) · `_apply` · `_delete` |
-| Deployments | `komodo_deployment_list` · `_info` · `_action` · `_apply` · `_delete` |
-| Builds / builders / repos | `komodo_build_list` · `_info` · `_action` · `_logs` · `_apply` · `_delete`; `komodo_builder_*`; `komodo_repo_*` |
-| Containers | `komodo_container_list` · `_inspect` · `_logs` · `_search_logs` · `_action` |
-| Docker objects | `komodo_docker_image_*` · `komodo_docker_network_*` · `komodo_docker_volume_*` |
-| Procedures / actions / syncs | `komodo_procedure_*` · `komodo_action_*` · `komodo_resource_sync_*` |
-| TOML export | `komodo_toml_export_all` · `komodo_toml_export_resources` |
-| Users / vars / tags / alerters | `komodo_user_*` (incl. `komodo_user_create_api_key`, `komodo_user_list_api_keys`) · `komodo_variable_*` · `komodo_tag_*` · `komodo_alerter_*` |
-| Utility | `komodo_health_check` (connection state) · `komodo_exec` (arbitrary shell on a host — **excluded in this deployment**, see Safety) |
+| `true` (default) | prompts via pi's dialog; headless applies `confirmFallback` (`deny` fails closed, `allow` executes with an audit warning) |
+| `false` | **no prompt, no fail-closed** — every destructive call proceeds |
 
-Resource **reads** use `_list`/`_info`; **writes** use `_apply`/`_delete`; **actions** use
-`_action` and return the finished `Update`. Paging/query params: `limit: 0` means all.
+**This deployment runs `confirmDestructive: false` plus `excludedTools: ["komodo_exec"]`**,
+so nothing prompts and nothing protects you. The safety rules in
+[`run-executions.md`](run-executions.md) and `SKILL.md` are the only guardrail: confirm
+intent with the user first.
 
-## Safety
+## Redaction
 
-- Destructive actions (`*_delete`, `destroy`, `prune`, `_action` runs) require
-  confirmation via pi's dialog. Headless there is no dialog → **denied** unless
-  `confirmFallback: "allow"` (settings.json).
-- **This deployment:** `komodo_exec` is dropped (`"excludedTools": ["komodo_exec"]`) and
-  the destructive prompt is off (`"confirmDestructive": false`) in
-  `~/.pi/agent/settings.json`. Reach a host shell over **SSH / the `op` path**, not
-  Komodo — the API key is a service credential, not a shell gateway. Settings are read at
-  extension load; `pi.getSettings()` changes apply on the next pi restart.
-- Resolve the exact target set (`*_list`) before a batch/pattern action; `PruneSystem`
-  (volumes) and `DestroyStack` have the highest blast radius.
-- Confirm intent before destroy/prune/delete/stop, and never echo `K_…`/`S_…`.
+Tool output is scrubbed of secret-shaped values at the pi tool boundary (on by default;
+`KOMODO_SECRET_SCRUB_ENABLED=false` disables). `KOMODO_SECRET_SCRUB_KEYS` adds extra
+key-name fragments to redact; `KOMODO_SECRET_SCRUB_ALLOW_KEYS` exempts exact keys. Scrubbing
+is best-effort — it is not a licence to print credentials.
 
-## Verify
+## Verify the connection
 
-`komodo_health_check` → `configured: true, healthy: true` with the Core version. If it
-reports *not configured*, the credentials did not resolve (stale auth.json values, a
-failed `!command`, or a 401 that dropped the connection) — re-check the `op://` refs and
-restart pi.
+| Tool | Needs a key? | Reports |
+|---|---|---|
+| `komodo_health_check` | no | `configured`, `healthy`, Core version, extension version |
+| `komodo_auth` | no (status only) | source, identity, fingerprint, loaded time, permissions |
+| `komodo_whoami` | yes | effective identity + per-resource-type permission summary from Komodo |
+
+If `komodo_health_check` reports *not configured*, the credentials did not resolve (stale
+`auth.json`, a failed `!command`, or a bad URL) — or the session simply has **no key
+loaded**, which is the normal keyless state. Distinguish the two with `komodo_auth`: if it
+says no key, ask the operator to run `/komodo`.

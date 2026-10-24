@@ -1,10 +1,53 @@
-# Terminals and Logs
+# Logs and Shells
 
-Use when: you need to run a shell command on a managed server or inside a container, keep a persistent session, or read logs.
+**Use when** you need to read container/stack logs, or you are tempted to run a shell command
+on a managed server or inside a container.
 
-## Terminal targets
+## Logs (the normal path)
 
-A terminal is identified by a `TerminalTarget`:
+```
+komodo_container_logs        { server: "prod-01", container: "web", tail: 200, timestamps: false }
+komodo_container_search_logs { server: "prod-01", container: "web", query: "ERROR", tail: 1000, caseSensitive: false }
+komodo_build_logs            { update_id: "<update-id>" }
+komodo_update_info           { id: "<update-id>" }        # stage-by-stage stdout/stderr of any execution
+```
+
+- `komodo_container_logs` tails recent output (`tail` default 100).
+- `komodo_container_search_logs` retrieves `tail` lines (default 1000) and filters
+  client-side. Plain text, not a regex.
+- `komodo_build_logs` / `komodo_update_info` are how you read what a deploy/build actually
+  did — the `Update.logs[]` entries are per **stage** (`Deploy Container`, `Clone Repo`,
+  `Diff compose files`, …), each with `stdout`/`stderr`/`success`.
+
+**Stack, deployment, and swarm-service logs have no typed tool.** Use `komodo_raw`:
+
+```
+komodo_raw { op: "GetStackLog",        args: { stack: "my-stack", services: [], tail: 100 } }
+komodo_raw { op: "SearchStackLog",     args: { stack: "my-stack", terms: ["ERROR"], combinator: "And" } }
+komodo_raw { op: "GetDeploymentLog",   args: { deployment: "web", tail: 100 } }
+komodo_raw { op: "GetSwarmServiceLog", args: { service: "web", tail: 100 } }
+```
+
+Log responses are `Log { stage, command, stdout, stderr, success, start_ts, end_ts }`.
+`tail` defaults ~50 and caps at 5000; `terms` + `combinator` (`And`/`Or`) + `invert` drive
+the search variants.
+
+## Shells: not through this extension
+
+**`komodo_exec` exists in the extension but is excluded in this deployment**
+(`"excludedTools": ["komodo_exec"]`), and `komodo_raw` is the only other route to a host
+shell. Reach a server over **SSH** (or the operator's `op` path) instead.
+
+The reason, in one line: **the Komodo API key is a service credential, not a shell
+gateway.** Host shells have a different blast radius and a different audit trail, so they
+stay on the host's own access path.
+
+If you find yourself wanting `komodo_exec`, stop and ask the user how they want the host
+touched. Do not invent a workaround with `RunStackService` or a terminal session.
+
+## The terminal namespace (raw, deliberately off the normal path)
+
+Core does expose terminals — a `TerminalTarget` is one of:
 
 ```jsonc
 { "type": "Server",     "params": { "server": "prod-01" } }
@@ -13,75 +56,35 @@ A terminal is identified by a `TerminalTarget`:
 { "type": "Deployment", "params": { "deployment": "web" } }
 ```
 
-## Create a named, persistent session
+`komodo_help { ns: "terminals" }` lists the five operations
+(`CreateTerminal`, `ListTerminals`, `DeleteTerminal`, `DeleteAllTerminals`,
+`BatchDeleteAllTerminals`). Executing a command additionally uses `POST /terminal/execute`,
+which returns a **raw PTY byte stream, not JSON** — one more reason this is a debugging path
+and not the way an agent works:
 
-```jsonc
-POST /write { "type": "CreateTerminal", "params": {
-    "name": "deploy-shell",
-    "target": {"type": "Server", "params": {"server": "prod-01"}},
-    "command": "bash",             // optional; server default shell if omitted
-    "mode": "exec",                // container targets: "exec" | "attach"
-    "recreate": "Never"            // "Never" | "Always" | "DifferentCommand"
-} }
-```
+- It needs `Read` + the `Terminal` specific permission on the target.
+- Sessions are created first (`CreateTerminal`, named, persistent) unless you pass `init`.
+- Command execution has no `Update`, no stage logs, and no polling — output parsing is
+  yours.
 
-Returns a `Terminal` (`name`, `target`, `command`, `stored_size_kb`, `created_at`). Sessions persist and retain history across disconnects. List them with `/read/ListTerminals`.
-
-Delete with `DeleteTerminal` `{target, terminal}`, `DeleteAllTerminals` `{server}`, or `BatchDeleteAllTerminals` `{query}`.
-
-## Execute a command (streamed output)
-
-```http
-POST /terminal/execute
-{
-  "target": {"type": "Server", "params": {"server": "prod-01"}},
-  "terminal": "deploy-shell",
-  "command": "df -h"
-}
-```
-
-- The response body is a **raw byte stream of PTY output** (not JSON).
-- Pass `init` instead of pre-creating a session to auto-create it:
-  `"init": {"command": "bash", "recreate": "Never", "mode": "exec"}`.
-- Requires `Read` + `Terminal` specific permission on the target.
-
-```bash
-curl -sS $CORE/terminal/execute \
-  -H 'Content-Type: application/json' -H "X-Api-Key: $K" -H "X-Api-Secret: $S" \
-  -d '{"target":{"type":"Server","params":{"server":"prod-01"}},"terminal":"deploy-shell","command":"uptime"}'
-```
-
-## Interactive sessions over websocket
-
-The terminal websocket supports bidirectional I/O for full interactivity: send stdin bytes, and `TerminalResizeMessage {rows, cols}` when the client window changes. See `GET /ws` and the generated `/client/terminal.d.ts`. For most agent tasks, one-shot `/terminal/execute` is simpler and sufficient.
-
-## Logs (read endpoints)
-
-```jsonc
-POST /read { "type": "GetContainerLog",    "params": {"server":"prod-01","container":"web","tail":200} }
-POST /read { "type": "SearchContainerLog", "params": {"server":"prod-01","container":"web","terms":["ERROR"],"combinator":"And"} }
-POST /read { "type": "GetStackLog",         "params": {"stack":"my-stack","services":[],"tail":100} }
-POST /read { "type": "GetDeploymentLog",   "params": {"deployment":"web","tail":100} }
-```
-
-Responses are `Log { stage, command, stdout, stderr, success, start_ts, end_ts }`. Search endpoints support `terms`, `combinator` (`And`/`Or`), and `invert`. `tail` default ~50, max 5000.
+These ops are risk-classed `terminal` and gated (in a deployment where the gate is on). Here
+the gate is off, so treat them as user-authorised-only.
 
 ## Permissions
 
-Terminals require the `Terminal` specific permission; log reads require `Logs`; container inspect requires `Inspect`. See `patterns/authenticate.md` and `patterns/users-and-permissions.md`.
+| Need | Requires |
+|------|----------|
+| Read logs | `Logs` specific permission |
+| Read a container's detail | `Inspect` |
+| Use a terminal | `Terminal` (and `Attach` to attach) |
+
+Check with `komodo_whoami`, or a scoped `GetPermission` — see
+[`authenticate.md`](authenticate.md).
 
 ## Key rules
 
-- `/terminal/execute` output is bytes, not a JSON `Log`. Parse/print it directly.
-- `CreateTerminal` fails if a session of that name exists with a different command unless you set `recreate`.
-- Container terminals need a disambiguated `server` when the container name appears on multiple servers (use `ListAllContainers` first).
-
-## Workflow example
-
-```bash
-# run a quick command, then read the container log
-curl -sS $CORE/terminal/execute -H 'Content-Type: application/json' -H "X-Api-Key: $K" -H "X-Api-Secret: $S" \
-  -d '{"target":{"type":"Container","params":{"server":"prod-01","container":"web"}},"terminal":"probe","command":"env","init":{"command":"sh","recreate":"Never"}}'
-curl -sS $CORE/read -H 'Content-Type: application/json' -H "X-Api-Key: $K" -H "X-Api-Secret: $S" \
-  -d '{"type":"GetContainerLog","params":{"server":"prod-01","container":"web","tail":100}}'
-```
+- Prefer `komodo_container_logs` / `_search_logs`; drop to raw only for stack/deployment/
+  swarm logs.
+- Read an execution's own stage logs (`komodo_update_info`) before blaming a service.
+- Do not use Komodo for host shells. SSH is the path; ask the user.
+- Terminal output is bytes, never a JSON `Log` — never parse it as one.

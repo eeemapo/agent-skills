@@ -1,6 +1,6 @@
 # Shared Schemas and Queries
 
-Field-level truth is always `GET <core-host>/docs`; this page covers the structures you will reuse across most calls.
+Field-level truth is always `GET <core-host>/docs`; this page covers the structures you will reuse across most calls. The typed `_list`/`_info` tools and `komodo_raw` take these same fields (`komodo_raw` calls it `args`). For operation names, browse with `komodo_help`.
 
 ## List request (generic)
 

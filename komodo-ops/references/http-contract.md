@@ -2,6 +2,10 @@
 
 Core speaks a JSON "RPC-over-HTTP" protocol. The same schema powers the typed Rust/TypeScript clients, the CLI, and the UI.
 
+> **Not the normal path from pi.** The pi-komodo extension runs **in-process** — use the typed
+> `komodo_*` tools, or `komodo_help` + `komodo_raw` for the full surface. This page is for
+> non-pi clients and for wire-level debugging (headers, envelopes, error shapes, paging).
+
 ## Transport
 
 - **Method:** `POST` for `/auth`, `/read`, `/write`, `/execute`, `/terminal/execute`.

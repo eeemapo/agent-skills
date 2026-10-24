@@ -1,138 +1,140 @@
 # Run Executions
 
-Use when: you need to deploy, build, sync, start/stop/restart/pause, or run Docker maintenance on Komodo resources. All mutating actions are **executions** posted to `/execute`.
+**Use when** you need to deploy, build, sync, start/stop/destroy, or run Docker maintenance
+on Komodo resources. Everything mutating is an **execution**.
 
-## Shape
+## Typed `_action` tools already poll
 
-```http
-POST /execute
-{ "type": "DeployStack", "params": { "stack": "my-stack" } }
-```
+`komodo_stack_action`, `komodo_deployment_action`, `komodo_container_action`,
+`komodo_server_action`, `komodo_build_action`, `komodo_repo_action`,
+`komodo_procedure_action`, `komodo_action_action`, `komodo_resource_sync_action`,
+`komodo_swarm_action` are long-running: they submit the execution and **poll the `Update` to
+completion** (1 s interval, 30 min cap, reporting real per-stage progress), then return the
+finished `Update`. You do **not** poll `GetUpdate` yourself.
 
-Returns an `Update`. Poll `/read/GetUpdate` with its `id` until `status == "Complete"`, then check `success` and read `logs[].stdout`/`stderr`.
-
-```jsonc
-{"type":"GetUpdate","params":{"id":"<update-id>"}}
-```
-
-Use `Get*ActionState` (`/read`) while waiting to see live per-resource booleans. The pi-komodo extension's `komodo_*_action` tools poll `GetUpdate` internally and return the finished `Update` — see `patterns/use-the-extension.md`.
+On `komodo_raw` you do: an execute returns an `Update` whose `id` you poll with
+`GetUpdate` until `status == "Complete"`, then check `success` and `logs`. Update lifecycle
+is `Queued → InProgress → Complete`, with one log entry per completed stage.
 
 ## Convention: recreate, don't just stop/restart
 
-**To apply a change, destroy and re-deploy — not stop/deploy.** Default:
+**To apply a change, destroy and re-deploy — not stop/deploy.**
 
 ```
-DestroyStack  ->  DeployStack
+komodo_stack_action { action: "destroy", stack: "my-stack" }   # containers removed; named volumes persist
+komodo_stack_action { action: "deploy",  stack: "my-stack" }   # clean recreate
 ```
 
-`RestartStack` / `StopStack` + `StartStack` cycle the **existing** containers;
-they do not recreate them, so a changed bind-mounted file (e.g. `./config.yaml`)
-is never re-read and a config edit can silently take no effect. `DestroyStack`
-(containers removed; named volumes persist) followed by `DeployStack` guarantees
-a clean recreate that picks up the new file.
+`start`/`stop`/`restart` cycle the **existing** containers; a changed bind-mounted file is
+never re-read, so an edit can silently take no effect while everything looks healthy.
 
-- Use **destroy/deploy** whenever applying an edit to a stack's files or env.
-- `DeployStackIfChanged` is the lighter option when a full recreate isn't wanted.
-- Plain stop/start/restart is only for cycling processes when the container
-  definition is unchanged.
-- Caveat: `DestroyStack` releases containers (and any ephemeral state) while
-  named volumes persist — confirm the stack's data is volume-backed first.
+- Use destroy → deploy whenever applying an edit to a stack's files or env.
+- `pull`, then `deploy` when only the image moved.
+- Plain start/stop/restart is only for cycling processes whose definition is unchanged.
+- `destroy` releases containers and ephemeral state; **named volumes persist** — confirm the
+  stack's data is volume-backed first.
 
 ### Never stop/start/restart a stack with a Tailscale sidecar
 
-If the compose file uses `network_mode: service:ts`, `RestartStack` and `StopStack`+`StartStack` break the
-companions: the sidecar returns but the other containers do **not** rejoin the shared network namespace, so
-the stack is unreachable on the tailnet while every container still reports *healthy*. **Recreate only**
-(`DestroyStack` -> `DeployStack`).
+If the compose file uses `network_mode: service:ts`, restart or stop+start break the
+companions: the sidecar returns but the others do **not** rejoin its network namespace, so
+the stack is unreachable on the tailnet while every container still reports *healthy*.
+
+This is why **`komodo_stack_action action="restart"` is refused** by the tool — it throws
+with instructions rather than silently re-mapping. Recreate instead. A wildcard/tagged batch
+is not a way around it either.
 
 ### Never restart the stack that carries your own route
 
-`litellm` is the gateway this agent's own `litellm/*` model calls go through. **A restart is the dangerous
-verb**: it leaves the stack in a state where the follow-up redeploy may not recover it, and it severs the
-agent's own inference route mid-turn. A plain **redeploy/recreate** is fine — the stack comes back — so
-prefer `DeployStack` (or destroy -> deploy) and *never* `RestartStack` on it. Plan the outage with the user
-and confirm the gateway's own API answers afterwards.
+`litellm` is the gateway this agent's own `litellm/*` model calls travel through. **A
+restart is the dangerous verb**: it can leave the stack in a state a following redeploy does
+not cleanly recover, and it severs inference mid-turn. A plain **redeploy** is fine — the
+stack comes back. Plan the window with the user and confirm the gateway's own API answers
+afterwards.
 
 ### Verify the change actually loaded
 
-A recreate can race the repo sync — the container may start *before* the edited file lands, then serve
-stale config while looking perfectly healthy. After recreating, prove the change took effect **through the
-service's own interface** (e.g. `GET /v1/models` on the gateway), never by checking that the file exists.
+A recreate can race the repo sync: the container starts *before* the edited file lands, then
+serves stale config while looking perfectly healthy. After recreating, prove the change took
+effect **through the service's own interface** — never by checking that the file exists.
 
-## Execution catalog (by area)
+## Execution catalog
 
-### Stacks (`docker compose`)
-`DeployStack`, `DeployStackIfChanged`, `PullStack`, `StartStack`, `RestartStack`, `PauseStack`, `UnpauseStack`, `StopStack`, `DestroyStack`, `RunStackService`.
-Params commonly `{stack, services?: [], stop_time?}`; `DestroyStack` also `{remove_orphans}`; `RunStackService` `{stack, service, command?, env?, detach?, ...}`.
+### Stacks (`komodo_stack_action`)
+`deploy`, `pull`, `start`, `pause`, `unpause`, `stop`, `destroy` — **`restart` refused**.
+Raw equivalents carry extra params: `DeployStackIfChanged`, `RunStackService`
+(`{stack, service, command?, env?, detach?}`, `DestroyStack {remove_orphans}`).
 
-### Deployments (single containers)
-`Deploy`, `PullDeployment`, `StartDeployment`, `RestartDeployment`, `PauseDeployment`, `UnpauseDeployment`, `StopDeployment`, `DestroyDeployment`.
+### Deployments (`komodo_deployment_action`)
+`deploy`, `pull`, `start`, `restart`, `pause`, `unpause`, `stop`, `destroy`.
 
-### Builds / repos
-`RunBuild`, `CancelBuild`, `CloneRepo`, `PullRepo`, `BuildRepo`, `CancelRepoBuild`.
+### Containers (`komodo_container_action`)
+`start`, `stop`, `restart`, `pause`, `unpause`.
+
+### Servers (`komodo_server_action`)
+Batch lifecycle: `start_all_containers`, `restart_all_containers`, `pause_all_containers`,
+`unpause_all_containers`, `stop_all_containers`. Pruning: `prune_containers`,
+`prune_images`, `prune_volumes`, `prune_networks`, `prune_system`, `prune_docker_builders`,
+`prune_buildx`. Deletions (need `name`): `delete_network`, `delete_image`, `delete_volume`.
+**These act on every container on the host** — a batch lifecycle action on a shared server
+is a full outage; `prune_system` removes volumes.
+
+### Builds / repos / builders
+`komodo_build_action { build, action: "run" | "cancel" }`;
+`komodo_repo_action { repo, action: "clone" | "pull" | "build" | "cancel_build" }`;
+`komodo_build_logs { update_id }` for per-stage output after a run.
 
 ### Procedures / actions / syncs
-`RunProcedure`, `CancelProcedure`, `RunAction`, `CancelAction`, `RunSync`.
-`RunAction` accepts `{action, args?}` to merge custom variables over defaults (also used by webhooks).
+`komodo_procedure_action { procedure, action: "run" }`;
+`komodo_action_action { action_id, action: "run", args? }` (custom args merge over defaults,
+as webhooks use); `komodo_resource_sync_action { resource_sync, action: "run" | "refresh" }`.
+`CommitSync` is the exception: it is a **write**, not an execute — see
+[`resource-sync-toml.md`](resource-sync-toml.md).
 
-### Server-wide container management
-`StartContainer`/`RestartContainer`/`PauseContainer`/`UnpauseContainer`/`StopContainer`/`DestroyContainer`,
-`StartAllContainers`/`RestartAllContainers`/`PauseAllContainers`/`UnpauseAllContainers`/`StopAllContainers`.
+### Swarms (`komodo_swarm_action`)
+`update_node` (availability/role/labels), `remove_nodes`, `remove_services`,
+`remove_stacks`. Swarm config/secret ops are raw.
 
-### Docker maintenance (destructive)
-`PruneContainers`, `PruneImages`, `PruneNetworks`, `PruneVolumes`, `PruneSystem`, `PruneDockerBuilders`, `PruneBuildx`, `DeleteNetwork`, `DeleteImage`, `DeleteVolume`.
-`PruneSystem` removes volumes — highest blast radius.
+### Maintenance and admin (raw)
+`PruneContainers`/`PruneImages`/`PruneNetworks`/`PruneVolumes`/`PruneSystem`/… group under
+the typed `komodo_server_action` above. Raw-only: `TestAlerter`, `SendAlert`, and Core
+maintenance — `BackupCoreDatabase`, `ClearRepoCache`, `GlobalAutoUpdate {skip_auto_update}`,
+`RotateAllServerKeys`, `RotateCoreKeys {force}` (see
+[`../references/core-operations.md`](../references/core-operations.md)). Admin-only.
 
-### Swarm
-`RemoveSwarmNodes`, `UpdateSwarmNode`, `RemoveSwarmStacks`, `RemoveSwarmServices`, `CreateSwarmConfig`/`RotateSwarmConfig`/`RemoveSwarmConfigs`, `CreateSwarmSecret`/`RotateSwarmSecret`/`RemoveSwarmSecrets`.
+## Batch executions (raw)
 
-### Alerters
-`TestAlerter`, `SendAlert`.
+Every common execution has a `Batch*` variant taking a wildcard/regex `pattern` plus
+optional `tags`:
 
-### Core maintenance (admin only)
-`BackupCoreDatabase`, `ClearRepoCache`, `GlobalAutoUpdate` (`{skip_auto_update?}`), `RotateAllServerKeys`, `RotateCoreKeys` (`{force?}`). See `references/core-operations.md`.
-
-### Utility
-`None` (no-op), `Sleep` (`{duration_ms}`).
-
-> `CommitSync` is special: it is dispatched to `/write`, not `/execute` (see `patterns/resource-sync-toml.md`).
-
-## Batch executions
-
-Every common execution has a parallel `Batch*` variant taking a wildcard/regex `pattern` plus optional `tags`:
-
-```jsonc
-POST /execute { "type": "BatchDeployStack", "params": {
-    "pattern": "prod-*", "tags": ["prod"] } }
+```
+komodo_raw { op: "BatchDeployStack", args: { pattern: "prod-*", tags: ["prod"] } }
 ```
 
-`pattern` supports multiline and comma-delineated combinations of names, globs, and regexes. Batch executions return `{status, data}` items (or per-item errors) rather than a single `Update`; poll each returned update id.
-
-Batch variants exist for: `RunAction`, `RunProcedure`, `RunBuild`, `Deploy`, `DestroyDeployment`, `CloneRepo`, `PullRepo`, `BuildRepo`, `DeployStack`, `DeployStackIfChanged`, `PullStack`, `DestroyStack`.
+`pattern` accepts multiline and comma-delineated combinations of names, globs, and regexes.
+Batch calls return `{status, data}` items (or per-item errors) rather than one `Update`; each
+returned update id must be polled separately. Batch variants exist for `RunAction`,
+`RunProcedure`, `RunBuild`, `Deploy`, `DestroyDeployment`, `CloneRepo`, `PullRepo`,
+`BuildRepo`, `DeployStack`, `DeployStackIfChanged`, `PullStack`, `DestroyStack`.
 
 ## Resolve targets first
 
-Because batch patterns can be broad, **first** enumerate what would match, then execute:
+Because patterns can be broad, **enumerate what would match, then execute** — never blanket a
+wildcard you have not listed:
 
-```bash
-curl -sS $CORE/read -H 'Content-Type: application/json' -H "X-Api-Key: $K" -H "X-Api-Secret: $S" \
-  -d '{"type":"ListStacks","params":{"query":{"terms":["prod"]},"limit":0}}'
+```
+komodo_stack_list { page_size: 100 }        # who actually matches "prod-*"?
 ```
 
 ## Safety
 
-- To apply a config/mount change, **recreate** (`DestroyStack` -> `DeployStack`); stop/restart won't reload a changed mounted file. See the convention above.
-- Destructive: `Destroy*`, `Delete*`, `Prune*`, `Stop*`, `Remove*`. Confirm with the user; never blanket-batch a wildcard you have not enumerated.
-- Execution results are asynchronous: a 200 only means *queued/started*. Always poll `GetUpdate`.
-- `GlobalAutoUpdate` can redeploy many resources at once; scope it or pass `skip_auto_update`.
-
-## Workflow example — safe restart
-
-```bash
-# 1) confirm state
-curl .../read -d '{"type":"GetStackActionState","params":{"stack":"my-stack"}}'
-# 2) run
-curl .../execute -d '{"type":"RestartStack","params":{"stack":"my-stack"}}'
-# 3) poll (repeat until Complete)
-curl .../read -d '{"type":"GetUpdate","params":{"id":"<update-id>"}}'
-```
+- **The confirmation gate is off in this deployment** (`confirmDestructive: false`), so
+  nothing prompts. Confirm with the user before anything destructive; see
+  [`use-the-extension.md`](use-the-extension.md).
+- Destructive verbs: `destroy`, `_delete`, `prune_*`, `stop`, `remove_*`. Highest blast
+  radius: `prune_system` (volumes) and `destroy`.
+- To apply a config or mount change, **recreate**; stop/restart will not reload it.
+- Execution success is asynchronous: poll (typed tools do it for you) and then read
+  `success` and `logs` — a returned `Update` is evidence, a started request is not.
+- `GlobalAutoUpdate` can redeploy many resources at once; scope it or pass
+  `skip_auto_update`.

@@ -1,120 +1,143 @@
 # Manage Resources (CRUD)
 
-Use when: you need to create, update, copy, rename, or delete any Komodo resource, or change tags/variables/providers.
+**Use when** you need to create, update, copy, rename, or delete a Komodo resource, or change
+tags, variables, or metadata.
 
-## Write request shape
+## Typed writes
 
-```http
-POST /write
-{ "type": "UpdateStack", "params": { "id": "my-stack", "config": { "branch": "release" } } }
+Every resource domain with a typed tool exposes two verbs:
+
+| Verb | Shape | Notes |
+|------|-------|-------|
+| `komodo_<resource>_apply` | `action="create"` → needs `name`; `action="update"` → needs the resource id/name | **PATCH-style partial merge**: only the fields you send change |
+| `komodo_<resource>_delete` | the resource id/name | irreversible; confirm with the user first |
+
+Domains with typed `_apply`/`_delete`: `server`, `swarm`, `stack`, `deployment`, `build`,
+`repo`, `procedure`, `action`, `alerter`, `resource_sync`, `builder`, `variable`, `tag`.
+
+## Create vs update
+
+```
+# create — name plus the source of truth for that resource type
+komodo_stack_apply { action: "create", name: "my-stack", server_id: "prod-01",
+                     config: { repo: "org/repo", branch: "main", run_directory: "my-stack" } }
+
+# update — only what you mean to change; everything else is preserved
+komodo_stack_apply { action: "update", stack: "my-stack", config: { branch: "release" } }
 ```
 
-Every `X` resource type exposes a consistent verb set. Unless noted, `Create`/`Copy`/`Update` return the full resource, `Delete` returns the deleted resource, and `Rename` returns an `Update`.
+**Read-modify-write:** fetch with `_info`, change only the intended fields, then `_apply`.
+The merge is field-level on the partial config; there is no race protection, so a concurrent
+editor's change to a field you also sent will be lost.
 
-| Verb | Params | Notes |
-|------|--------|-------|
-| `CreateX` | `{name, config?}` | `config` is a partial config |
-| `CopyX` | `{name, id}` | clone an existing resource under a new name |
-| `UpdateX` | `{id, config}` | **partial config merge** (only sent fields change) |
-| `DeleteX` | `{id}` | irreversible |
-| `RenameX` | `{id, name}` | returns `Update` |
+Notable per-type config lives in the tool descriptions — read them before a first create.
+Two that bite:
 
-Resource types: `Swarm`, `Server`, `Stack`, `Deployment`, `Build`, `Repo`, `Procedure`, `Action`, `ResourceSync`, `Builder`, `Alerter`.
+- **Stacks** take their content from one of three sources (`file_contents` for inline,
+  `repo` + `branch` for repo-backed, `files_on_host` for host files) plus `environment`,
+  `run_directory`, `auto_pull`, `auto_update`, `destroy_before_deploy`, `webhook_*`, and
+  `compose_cmd_wrapper`. Editing the *files* of an existing stack is a different operation —
+  see the local conventions in `SKILL.md` (`14.13`).
+- **Deployments** accept `image` as a plain string or as `{ type: "Image"|"Build", params }`;
+  a `Build` image ties the deployment to a Komodo Build's version, and `redeploy_on_build`
+  makes the build redeploy it.
 
-## Examples
+## Copy and rename
 
-```bash
-# Create
-curl -sS $CORE/write -H 'Content-Type: application/json' -H "X-Api-Key: $K" -H "X-Api-Secret: $S" \
-  -d '{"type":"CreateStack","params":{"name":"my-stack","config":{"server_id":"<server-id>"}}}'
+Typed only for builders: `komodo_builder_copy { name, id }` and
+`komodo_builder_rename { builder, name }`.
 
-# Update (merges): only branch changes, everything else preserved
-curl -sS $CORE/write -H 'Content-Type: application/json' -H "X-Api-Key: $K" -H "X-Api-Secret: $S" \
-  -d '{"type":"UpdateStack","params":{"id":"my-stack","config":{"branch":"release"}}}'
+For everything else, use raw — `CopyX {name, id}` clones under a new name and
+`RenameX {id, name}` returns an `Update`:
 
-# Rename, then delete
-curl .../write -d '{"type":"RenameStack","params":{"id":"my-stack","name":"my-stack-v2"}}'
-curl .../write -d '{"type":"DeleteStack","params":{"id":"my-stack-v2"}}'
+```
+komodo_raw { op: "CopyStack",   args: { name: "my-stack-v2", id: "my-stack" } }
+komodo_raw { op: "RenameStack", args: { id: "my-stack-v2", name: "my-stack-prod" } }
 ```
 
-## Shared meta: description / template / tags
+## Shared metadata: description / template / tags
 
-Any resource type uses the same endpoint:
+Every resource type uses one operation, `UpdateResourceMeta`, with a `target`:
 
-```jsonc
-POST /write { "type": "UpdateResourceMeta", "params": {
-    "target": {"type": "Stack", "id": "my-stack"},
-    "description": "Prod web stack",
-    "template": false,
-    "tags": ["prod", "web"]     // exact set to apply; null = no change
+```
+komodo_raw { op: "UpdateResourceMeta", args: {
+  target: { type: "Stack", id: "my-stack" },
+  description: "Prod web stack",
+  template: false,
+  tags: ["prod", "web"]        // exact set to apply; null = no change
 } }
 ```
 
-## Resource-specific writes
+`target.type` is the resource kind (`Stack`, `Deployment`, `Server`, `Build`, `Repo`,
+`Procedure`, `Action`, `ResourceSync`, `Builder`, `Alerter`, `Swarm`, `Variable`, …).
 
-| Type | Endpoints |
+## Resource-specific writes (raw)
+
+These have no typed tool:
+
+| Type | Operations |
 |------|-----------|
-| Stack | `WriteStackFileContents` `{stack, file_path, contents}`, `RefreshStackCache` `{stack}`, `CheckStackForUpdate` `{stack,...}`, `BatchCheckStackForUpdate` `{pattern, tags?}` |
+| Stack | `WriteStackFileContents {stack, file_path, contents}`, `RefreshStackCache`, `CheckStackForUpdate`, `BatchCheckStackForUpdate` |
 | Deployment | `CreateDeploymentFromContainer`, `CheckDeploymentForUpdate`, `BatchCheckDeploymentForUpdate` |
 | Build | `WriteBuildFileContents`, `RefreshBuildCache` |
 | Repo | `RefreshRepoCache` |
 | ResourceSync | `WriteSyncFileContents`, `CommitSync`, `RefreshResourceSyncPending` |
 | Server | `CreateNetwork`, `UpdateServerPublicKey`, `RotateServerKeys` |
+| Alert | `CloseAlert {id}` |
 
-`Check*ForUpdate` inspects images/repo contents for available updates and can auto-redeploy when `auto_update` is enabled (see `patterns/run-executions.md`).
+`Check*ForUpdate` inspects images/repo contents for available updates and can auto-redeploy
+when the resource has `auto_update` enabled (see [`run-executions.md`](run-executions.md)).
+`Write*FileContents` commits to the backing repo **asynchronously** — read the local
+conventions before relying on the server's local checkout.
 
 ## Variables
 
-```jsonc
-POST /write { "type": "CreateVariable",   "params": {"name":"MY_VAR","value":"x","description":"","is_secret":false} }
-POST /write { "type": "UpdateVariableValue", "params": {"name":"MY_VAR","value":"y"} }
-POST /write { "type": "UpdateVariableIsSecret", "params": {"name":"MY_VAR","is_secret":true} }
-POST /write { "type": "UpdateVariableDescription", "params": {"name":"MY_VAR","description":"..."} }
-POST /write { "type": "DeleteVariable", "params": {"name":"MY_VAR"} }
+Typed (`komodo_variable_*`), with one wrinkle: on update, each of `value`, `description`,
+and `is_secret` is a **separate** API call, so pass only the ones you intend to change.
+
+```
+komodo_variable_apply { action: "create", name: "MY_VAR", value: "x", is_secret: false }
+komodo_variable_apply { action: "update", name: "MY_VAR", value: "y" }
+komodo_variable_list
 ```
 
-Variables referenced in resource configs are interpolated by Core at execution time. **Admin only.**
+Variables referenced in resource configs as `[[variable.name]]` are interpolated by Core at
+execution time. **Admin only.** Deleting one breaks any stack/deployment that references it.
 
 ## Tags
 
-```jsonc
-POST /write { "type": "CreateTag",     "params": {"name":"prod","color":"Red"} }
-POST /write { "type": "RenameTag",     "params": {"id":"<tag-id>","name":"production"} }
-POST /write { "type": "UpdateTagColor","params": {"tag":"production","color":"Green"} }
-POST /write { "type": "DeleteTag",     "params": {"id":"<tag-id>"} }   // also detaches from resources
+```
+komodo_tag_apply { action: "create", name: "prod", color: "Red" }
+komodo_tag_apply { action: "update", tag: "prod", name: "production", color: "Green" }
+komodo_tag_delete { tag: "production" }        # also detaches it from every resource
 ```
 
-Tags attach to resources via `UpdateResourceMeta` (`tags`) or resource configs. In `ResourceQuery`, pass tag **ids or names** with `tag_behavior` `All`/`Any`.
+Renaming and recolouring are separate API calls (there is no combined update endpoint), so
+`action="update"` issues one call per change. Colors are named `<Shade><Base>` (e.g.
+`Blue`, `DarkRed`, `LightGreen`). In queries, pass tag **ids or names** with `tag_behavior`
+`All` (default) or `Any`.
 
-## Git / image-registry provider accounts (admin only)
+## Admin-only writes (raw)
 
-```jsonc
-POST /write { "type": "CreateGitProviderAccount",        "params": {"account": {...}} }
-POST /write { "type": "UpdateGitProviderAccount",        "params": {"id":"...", "account": {...}} }
-POST /write { "type": "DeleteGitProviderAccount",        "params": {"id":"..."} }
-POST /write { "type": "CreateImageRegistryAccount",      "params": {"account": {...}} }
-POST /write { "type": "UpdateImageRegistryAccount",      "params": {"id":"...", "account": {...}} }
-POST /write { "type": "DeleteImageRegistryAccount",      "params": {"id":"..."} }
-```
+Providers, users, groups, permissions, onboarding keys, and swarm configs/secrets are admin
+operations with no typed tool — reach them through `komodo_help` → `komodo_raw`:
 
-See also reads `ListGitProviderAccounts`, `ListImageRegistryAccounts`, and the config-derived `ListGitProvidersFromConfig`, `ListImageRegistriesFromConfig`, `ListSecrets`.
+| Area | Operations |
+|------|-----------|
+| Git / registry accounts | `Create`/`Update`/`DeleteGitProviderAccount`, `Create`/`Update`/`DeleteImageRegistryAccount` |
+| Users & groups | `CreateLocalUser`, `DeleteUser`, `CreateServiceUser`, `CreateUserGroup`, `AddUserToUserGroup`, `SetUsersInUserGroup`, … |
+| Permissions | `UpdateUserBasePermissions`, `UpdateUserAdmin`, `UpdatePermissionOnResourceType`, `UpdatePermissionOnTarget` |
+| Swarm configs/secrets | `CreateSwarmConfig` / `RotateSwarmConfig` / `RemoveSwarmConfigs`, `CreateSwarmSecret` / `RotateSwarmSecret` / `RemoveSwarmSecrets` |
 
-## Alerts
-
-```jsonc
-POST /write { "type": "CloseAlert", "params": {"id": "<alert-id>"} }
-```
+`UpdateResourceMeta`, tags, and most resource CRUD are open to any writer; variables,
+provider accounts, user/permission changes, and user deletion are admin. A non-admin key
+gets **403**. See [`users-and-permissions.md`](users-and-permissions.md).
 
 ## Key rules
 
-- **Read-modify-write:** fetch with `GetX`/`ListFullX`, change only what you mean to, then `UpdateX`. The merge is field-level on the partial config.
-- **Admin-only** endpoints (`CreateVariable`, tags are generally open; providers/variables/deletes of users are admin) will 403 for non-admin keys.
-- Resource names are unique per type and can be used in place of ids, but store the stable `id`.
-
-## Workflow example
-
-```bash
-# ensure a tag exists, apply it, and set a description
-curl .../write -d '{"type":"CreateTag","params":{"name":"prod","color":"Red"}}'
-curl .../write -d '{"type":"UpdateResourceMeta","params":{"target":{"type":"Stack","id":"my-stack"},"tags":["prod"],"description":"Prod web"}}'
-```
+- Partial merge: send only what changes; read before you write.
+- Resolve the exact id first (`_list`/`_info`); names work for most fields but store the id.
+- `_delete` is irreversible — confirm intent, and check nothing depends on the resource.
+- Never echo returned credentials (`komodo_user_create_api_key`, `CreateApiKeyForServiceUser`).
+- After a config change, an execution is usually required to make it real — see
+  [`run-executions.md`](run-executions.md).

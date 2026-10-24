@@ -1,10 +1,15 @@
 # Endpoint Catalog
 
-All requests are `POST` with body `{"type": "<Name>", "params": { ... }}` to the module path. Names below are the `type` values. `**Admin only**` / `**Super Admin**` are enforced server-side.
+All requests are `POST` with body `{"type": "<Name>", "params": { ... }}` to the module path. Names below are the `type` values — the same names `komodo_raw` takes as `op`, with the `params` object as `args`. `**Admin only**` / `**Super Admin**` are enforced server-side.
+
+> **Prefer `komodo_help` when you can.** It reads the surface the installed extension actually
+> knows (`komodo_help`, then `komodo_help {ns:"stacks"}`, then `komodo_help {op:"DeployStack"}`).
+> This page is the **offline index** — for when you have no round-trip to spare, or are working
+> outside pi.
 
 ## Version compatibility
 
-Names below match Core **2.3.x**. On Core **< 2.3.0** the Docker endpoints still use `Docker*` names; a 2.3.x server accepts the old names as aliases, but an old server rejects the new ones. Call `/read/GetVersion` first and substitute when needed:
+Names below match Core **2.3.x** (this deployment runs **2.3.3**). On Core **< 2.3.0** the Docker endpoints still use `Docker*` names; a 2.3.x server accepts the old names as aliases, but an old server rejects the new ones. Call `/read/GetVersion` first and substitute when needed:
 
 | 2.3.x | < 2.3.0 |
 |-------|---------|
