@@ -40,8 +40,14 @@ and watches `/app/config/config.yaml`.
 
     ssh mco
     cp -a /stackData/litellm/config/config.yaml /tmp/litellm.yaml.bak   # dir is root-owned
-    $EDITOR /stackData/litellm/config/config.yaml
+    # edit in place (sed -i, ed, cat >) — see the note below
     docker logs --tail 20 ai-litellm-1 | grep -i "WatchFiles detected"
+
+**Writing it matters.** The file is `sysops`-owned but its directory is
+`root:root`, so an editor that saves by write-then-rename (vim's default
+`backupcopy=no`, most GUI editors) fails there or leaves a root-owned file in
+place. Edit in place — `sed -i`, `ed`, `cat >` — or ask the user to run
+`sudo chown sysops:sysops /stackData/litellm/config` once.
 
 A saved edit logs `WatchFiles detected changes in 'config/config.yaml'. Reloading…`
 and the worker comes back in ~1–2 s. **In-flight requests can drop** — reload is
@@ -54,6 +60,7 @@ If it does **not** reload:
 | `Started reloader process [1] using StatReload` | `watchfiles` missing from `PYTHONPATH`; fix the `init` service, not the config |
 | CPU pegged ~100% | same cause — StatReload stat-scans every `*.py` under `/app` |
 | no reload line at all | file edited in the wrong place (repo stub instead of `/stackData`) |
+| reload line, but the model is unchanged | the edit was reverted by a write-then-rename, or landed in a stale copy |
 
 ## Step 3 — virtual-key scoping
 

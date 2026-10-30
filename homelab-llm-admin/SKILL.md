@@ -31,6 +31,7 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
 | Make a model usable at `ai.armadillo-hops.ts.net` | [`patterns/expose-through-litellm.md`](patterns/expose-through-litellm.md) | `model_list` entry, hot reload, per-key scoping |
 | A change to compose/env/image/mounts | [`patterns/change-the-stack.md`](patterns/change-the-stack.md) | Repo → gitea → Komodo deploy, what restarts |
 | Host paths, ports, vault items, matrix semantics | [`references/topology.md`](references/topology.md) | The map: who runs what, where the files are |
+| Whether you can even edit/deploy something | **Access and permissions** below | ssh reach, file ownership, sudo, Komodo scope |
 
 ## The two commands worth memorising
 
@@ -41,8 +42,47 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
     ssh mco ; $EDITOR /stackData/litellm/config/config.yaml
 
 Neither restarts a container and neither needs a Komodo deploy.
-Back up first — the LiteLLM config directory is not writable by `sysops`, so
-put backups in `/tmp`, not beside the file.
+
+## Access and permissions
+
+From `las`, plain OpenSSH reaches all three hosts over the tailnet as `sysops`,
+key-based, no password and no sudo:
+
+    ssh lax     # GPU node, utility models
+    ssh phx     # GPU node, chat weights
+    ssh mco     # LiteLLM front door
+
+It is ordinary `sshd` over the tailnet, **not** `tailscale ssh`: the latter fails
+against the `tag:container` devices (`502` then connection refused on :22) even
+though `ssh <host>` works. Use `ssh`.
+
+`sysops` is in the `docker` group on all three, so `docker ps/logs/inspect/exec`
+work without elevation. `sudo` exists everywhere but **prompts for a password** —
+treat anything root as a request to the user, never a routine step.
+
+| Path | Owner | Writable by `sysops` | Consequence |
+|---|---|---|---|
+| `lax:/opt/ai/config/llama-swap/` | sysops | **yes**, dir + file | edit, backup, atomic save all fine |
+| `phx:/opt/ai/config/llama-swap/` | sysops | **yes**, dir + file | same |
+| `mco:/stackData/litellm/config/config.yaml` | sysops | file only | in-place rewrite works |
+| `mco:/stackData/litellm/config/` | `root:root` | **no** | no backups beside it, no `.swp`, no write-then-rename |
+
+Because of that last row, on `mco` put backups in `/tmp` and edit with something
+that writes in place (`sed -i`, `ed`, `cat >`). Vim defaults to
+write-then-rename (`backupcopy=no`), which fails there — or worse, replaces the
+file with a root-owned one. The durable fix is a one-line root grant:
+
+    sudo chown sysops:sysops /stackData/litellm/config   # ask the user
+
+Secrets: the vault's default reach is `HL-OPS` **read-only** with manage OFF, so
+`vault_set`/`vault_new`/`vault_edit` are refused until the user arms
+`/vault manage`. `HL-SRV` / `HL-INF` are outside the default reach by design —
+naming them is an escalation to ask for, not a routine lookup.
+
+Komodo reads every stack, but **write is per-stack**: deploys of
+`llama-swap-phx` succeed while `ai` answers `insufficient permissions: Must have
+at least Write`. A permission refusal is not a YAML or syntax problem — stop and
+ask.
 
 ## Decision flow
 

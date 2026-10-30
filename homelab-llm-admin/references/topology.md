@@ -2,6 +2,64 @@
 
 Who runs what, where the files are, and how a request flows.
 
+## Access matrix
+
+### Reaching the hosts
+
+From `las`, as `sysops`, key-based OpenSSH over the tailnet — no password, no
+sudo, no jump host:
+
+| host | reaches | notes |
+|---|---|---|
+| `lax` | GPU node | utility models (OCR/ASR/embeddings) |
+| `phx` | GPU node | chat weights; the only node that spawns sibling containers |
+| `mco` | front door | no GPUs; LiteLLM + Postgres + Redis |
+
+`ai` (the `.ts.net` name) is **not** an ssh target — it is the tailscale
+container's hostname; only :443 is served. `tailscale ssh <host>` fails against
+these `tag:container` devices; plain `ssh <host>` works because sshd is reachable
+over the tailnet address.
+
+### What `sysops` may write
+
+`sysops` is in `docker` (all three hosts) and `sudo` (password required — root is
+a request, not a step).
+
+| Path | Owner | Status |
+|---|---|---|
+| `lax:/opt/ai/config/llama-swap/config.yaml` | `sysops:sysops`, dir `sysops` | fully writable; backup + atomic save fine |
+| `phx:/opt/ai/config/llama-swap/config.yaml` | `sysops:sysops`, dir `sysops` | same |
+| `phx:/opt/ai/strata`, `/opt/ai/hyperqwen`, `/opt/ai/nemotron` | `sysops` | weights are writable |
+| `mco:/stackData/litellm/config/config.yaml` | `sysops:sysops` | rewritable in place |
+| `mco:/stackData/litellm/config/` | `root:root 755` | **not** writable — no sibling files |
+| `mco:/stackData/litellm/` (parent) | `root:root` | create subdirs only as root |
+
+The directory restriction on `mco` is the only real friction: it blocks backups
+beside the file, editor swap files, and write-then-rename saves (vim's default).
+Durable fix, one root command:
+
+    sudo chown sysops:sysops /stackData/litellm/config
+
+### Komodo
+
+Read operations cover every stack. **Write is per-stack and per-user**: deploys
+of `llama-swap-phx` work, `ai` returns `insufficient permissions: Must have at
+least Write permissions`. `komodo_stack_apply` with `config.config_files` needs
+Write on that stack too. A refusal here is an authorization answer, not a
+malformed request — ask the user to change the grant or perform the edit.
+
+### Vault (secrets)
+
+| Tier | Reachable by default | Holds |
+|---|---|---|
+| `HL-OPS` | **yes**, read-only | `litellm-ops` (virtual key aliases `pi`, `public`, `work`, `openwebui`) |
+| `HL-SRV` | no | per-service items (`llama-swap-lax`, `llama-swap-phx`, …) |
+| `HL-INF` | no | host sudo/ssh, tailscale control plane, Komodo infra key |
+
+Default reach is `HL-OPS` with manage OFF: reads and `vault_run` injection work;
+any write is refused until the user arms `/vault manage`. `HL-SRV`/`HL-INF` are
+scope answers, not missing items — switching tiers is the user's move.
+
 ## Request path
 
     client ──HTTPS──▶ ai.armadillo-hops.ts.net        (MCO, LiteLLM, :4000)
