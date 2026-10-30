@@ -30,6 +30,8 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
 | "What's served?", "what key do I use?" | [`patterns/find-models-and-credentials.md`](patterns/find-models-and-credentials.md) | Three catalogues, per-endpoint credentials, 401/403/404 triage |
 | Add / remove / retune a model on a node | [`patterns/add-model-to-node.md`](patterns/add-model-to-node.md) | Stanza shapes, model dirs, matrix, reload + verify |
 | Get the weights (quant choice, cache vs preseed, disk) | [`patterns/download-and-preseed-weights.md`](patterns/download-and-preseed-weights.md) | Name the quant, warm the HF cache, where files live |
+| Is this file what it claims to be? | [`patterns/inspect-a-gguf.md`](patterns/inspect-a-gguf.md) | Header/metadata forensics with `scripts/gguf-inspect.py` |
+| Empty answers, runaway reasoning, "thinking" knobs | [`patterns/thinking-modes.md`](patterns/thinking-modes.md) | Template vs server vs request, and where the tokens went |
 | Make a model usable at `ai.armadillo-hops.ts.net` | [`patterns/expose-through-litellm.md`](patterns/expose-through-litellm.md) | `model_list` entry, hot reload, per-key scoping |
 | A change to compose/env/image/mounts | [`patterns/change-the-stack.md`](patterns/change-the-stack.md) | Repo → gitea → Komodo deploy, what restarts |
 | Host paths, ports, vault items, matrix semantics | [`references/topology.md`](references/topology.md) | The map: who runs what, where the files are |
@@ -172,6 +174,9 @@ top-level `matrix:` block.
 
 ## Gotchas
 
+- **An empty answer is usually a thinking budget, not a broken model.** If
+  `finish_reason` is `length` with empty `content`, the reasoning consumed
+  `max_tokens`; see [`patterns/thinking-modes.md`](patterns/thinking-modes.md).
 - **Config ≠ residency.** A stanza only describes how to start a backend. Models
   load on first request and unload after `ttl`/`unloadTimeout`.
 - **`/v1/models` counts aliases too.** The nodes set `includeAliasesInList:
