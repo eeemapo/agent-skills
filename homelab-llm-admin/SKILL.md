@@ -77,6 +77,25 @@ Two host-specific habits remain:
   events, so a `chown`/`chmod` on `config.yaml` triggers a worker reload just like
   an edit. Harmless, but the health endpoint returns nothing for a second or two.
 
+**The routine loop needs no escalation at all** — add/retune/retire a model, expose
+it, reload, verify. `sysops` owns every path involved (`/opt/ai` on both nodes is
+`sysops:sysops` setgid, so even a new model tree is just `mkdir`), and the `pi`
+virtual key that proves it live comes from the default `HL-OPS` reach.
+
+What **does** still need more, and from where:
+
+| Task | Needs | Where it comes from |
+|---|---|---|
+| root on a host (packages, users, root-owned paths, daemon config) | `sudo` | `HL-INF` (`MCO`/`LAX`/`PHX`) — **per-session** escalation |
+| call a node's API with its own key instead of via LiteLLM | node keys | `HL-SRV` — outside the default reach |
+| any vault **write** | manage mode | user arms `/vault manage` |
+| layer-3 change to the `ai` stack | Komodo Write on that stack | user grants it in Komodo (not vault) |
+
+Two honest caveats: the `docker` group is root-equivalent (`docker run -v /:/host`),
+so "no sudo" is not "no authority"; and an escalated vault reach is **memory-only
+for that session** — a fresh session is back to `HL-OPS` alone and the sudo item
+is out of reach again.
+
 Secrets: the vault's default reach is `HL-OPS` **read-only** with manage OFF, so
 `vault_set`/`vault_new`/`vault_edit` are refused until the user arms
 `/vault manage`. `HL-SRV` / `HL-INF` are outside the default reach by design —
