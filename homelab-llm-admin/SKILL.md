@@ -29,12 +29,22 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
 |---|---|---|
 | "What's served?", "what key do I use?" | [`patterns/find-models-and-credentials.md`](patterns/find-models-and-credentials.md) | Three catalogues, per-endpoint credentials, 401/403/404 triage |
 | Add / remove / retune a model on a node | [`patterns/add-model-to-node.md`](patterns/add-model-to-node.md) | Stanza shapes, model dirs, matrix, reload + verify |
+| Get the weights (quant choice, cache vs preseed, disk) | [`patterns/download-and-preseed-weights.md`](patterns/download-and-preseed-weights.md) | Name the quant, warm the HF cache, where files live |
 | Make a model usable at `ai.armadillo-hops.ts.net` | [`patterns/expose-through-litellm.md`](patterns/expose-through-litellm.md) | `model_list` entry, hot reload, per-key scoping |
 | A change to compose/env/image/mounts | [`patterns/change-the-stack.md`](patterns/change-the-stack.md) | Repo → gitea → Komodo deploy, what restarts |
 | Host paths, ports, vault items, matrix semantics | [`references/topology.md`](references/topology.md) | The map: who runs what, where the files are |
 | Whether you can even edit/deploy something | **Access and permissions** below | ssh reach, file ownership, sudo, Komodo scope |
 | "What key does X?" on a llama-swap node | [`references/llama-swap-config.example.yaml`](references/llama-swap-config.example.yaml) | Upstream's annotated example, vendored at our version |
 | "What key does X?" in LiteLLM | [`references/litellm-config.examples.yaml`](references/litellm-config.examples.yaml) | Three upstream examples we actually match |
+
+## Weights: warm the cache, name the quant
+
+Both nodes mount the host HF cache at `/hf-cache`, so a host-side
+`hf download <repo> <file>.gguf` makes an `-hf` stanza's first load local.
+**Always name the specific quant file** — a bare `hf download <repo>` pulls every
+quant and shard in the repo. Sibling containers (Strata/vLLM) cannot read the
+cache: their weights must be on disk and mounted `:ro`. Details, placement and
+traps: [`patterns/download-and-preseed-weights.md`](patterns/download-and-preseed-weights.md).
 
 ## The two commands worth memorising
 
@@ -174,6 +184,9 @@ top-level `matrix:` block.
   (`--network container:${env.LLAMA_SWAP_TS_CTR}`) so `127.0.0.1:${PORT}` is
   shared; that env var exists on `phx` only, and only `phx` mounts the docker
   socket + CLI.
+- **`-hf` downloads lazily at load time.** A stanza pointing at an uncached repo
+  turns a first request into a multi-GB pull that usually outlives the health
+  check. Preseed the cache instead of learning this the hard way.
 - **First load can outlast the health check.** Global `healthCheckTimeout` is
   300 s; a cold 30–60 GB model needs a per-model override (`healthCheckTimeout:
   900`) or llama-swap reports `health check timed out` and kills a load that

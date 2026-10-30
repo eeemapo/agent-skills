@@ -48,8 +48,10 @@ about 2 s. **No restart, no Komodo deploy.** Back up first:
     aliases: ["mymodel"]
 ```
 
-- `-hf`/`-hff` load from the HF cache mount (`/hf-cache`). A file already on disk
-  is passed by absolute path instead (`-m /models/<file>.gguf`).
+- `-hf`/`-hff` load from the HF cache mount (`/hf-cache`) and **download lazily
+  at load time** — preseed the cache first, and name the exact quant file
+  ([`download-and-preseed-weights.md`](download-and-preseed-weights.md)). A file
+  already on disk is passed by absolute path instead (`-m /models/<file>.gguf`).
 - `${PORT}` is assigned by llama-swap from `startPort: 10001`. Never hardcode.
 - `capabilities.context` must match `--ctx-size`; clients trust the former.
 - `ttl` (seconds idle) and `unloadTimeout` (grace before kill) decide eviction.
