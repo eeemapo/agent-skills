@@ -108,6 +108,9 @@ matrix:
 - Adding a model that spans both GPUs *must* go in a set that includes it, or it
   will fight the per-card models for VRAM.
 - Register a costly cold start in `evict_costs` so the solver avoids evicting it.
+- The vendored example in `../references/llama-swap-config.example.yaml` shows a
+  newer `routing.router.use: matrix` form. Both work on v268; ours is the older
+  top-level `matrix:` and there is no reason to migrate it mid-change.
 
 ## Step 3 — apply and verify
 

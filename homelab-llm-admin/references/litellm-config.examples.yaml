@@ -1,0 +1,98 @@
+# ---------------------------------------------------------------------------
+# Vendored reference — LiteLLM proxy config, in upstream's OWN examples.
+#
+#   upstream : https://github.com/BerriAI/litellm
+#   path     : litellm/proxy/example_config_yaml/  (three files, verbatim below)
+#   ref      : main @ 43c07a0f1246c95da710408df4d7846bc5f848e2  (2026-10-30)
+#   license  : MIT (BerriAI/litellm)
+#
+# THERE IS NO single "annotated config.yaml" upstream — unlike llama-swap,
+# LiteLLM keeps ~30 narrow examples in that directory instead. These three are
+# the ones that match how this homelab uses it (OpenAI-compatible upstreams,
+# config in Postgres, a verbatim pass-through route).
+#
+# For the exhaustive settings matrix, use the docs rather than this file:
+#   https://docs.litellm.ai/docs/proxy/config_settings   (every key + default)
+#   https://docs.litellm.ai/docs/proxy/configs          (model_list → DB overlay)
+#
+# Our conventions (node/<model-id> naming, os.environ keys, hot reload, per-key
+# scoping) are in ../patterns/expose-through-litellm.md.
+# ---------------------------------------------------------------------------
+
+
+# ===========================================================================
+# 1. simple_config.yaml — the minimal shape: a model_list of deployments
+# ===========================================================================
+model_list:
+  - model_name: gpt-5-mini
+    litellm_params:
+      model: gpt-5-mini
+
+---
+# ===========================================================================
+# 2. store_model_db_config.yaml — config held in Postgres.
+#    This is what the `ai` stack runs: store_model_in_db true means DB rows
+#    overlay general_settings/router_settings/litellm_settings/
+#    environment_variables on top of the YAML, and the DB value wins.
+# ===========================================================================
+model_list:
+  - model_name: fake-openai-endpoint
+    litellm_params:
+      model: openai/my-fake-model
+      api_key: my-fake-key
+      api_base: os.environ/FAKE_OPENAI_API_BASE
+
+general_settings:
+  store_model_in_db: true
+  custom_team_metadata_validate: team_metadata_validator_e2e.validate_team_metadata
+  team_metadata_validation_timeout: 5
+  team_metadata_validation_error_message: "Cost center validation is unavailable right now; the team was not saved. Contact FinOps."
+
+
+---
+# ===========================================================================
+# 3. pass_through_config.yaml — model_list entries plus a verbatim
+#    pass_through_endpoints route (used by the `ai` stack for /v1/systemone).
+# ===========================================================================
+model_list:
+  - model_name: fake-openai-endpoint
+    litellm_params:
+      model: openai/fake
+      api_key: fake-key
+      api_base: https://exampleopenaiendpoint-production.up.railway.app/
+  - model_name: claude-sonnet-4-5-20250929
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-special-alias
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-sonnet-4-5-20250929
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: anthropic/*
+    litellm_params:
+      model: anthropic/*
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: openai/*
+    litellm_params:
+      model: openai/*
+      api_key: os.environ/OPENAI_API_KEY
+general_settings: 
+  master_key: os.environ/LITELLM_MASTER_KEY
+  custom_auth: custom_auth_basic.user_api_key_auth
+  pass_through_endpoints:
+    - path: "/azure-config-passthrough"
+      target: os.environ/AZURE_API_BASE
+      include_subpath: true
+      headers:
+        Authorization: os.environ/AZURE_API_KEY
+
+litellm_settings:
+  include_cost_in_streaming_usage: true

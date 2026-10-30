@@ -32,6 +32,8 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
 | A change to compose/env/image/mounts | [`patterns/change-the-stack.md`](patterns/change-the-stack.md) | Repo → gitea → Komodo deploy, what restarts |
 | Host paths, ports, vault items, matrix semantics | [`references/topology.md`](references/topology.md) | The map: who runs what, where the files are |
 | Whether you can even edit/deploy something | **Access and permissions** below | ssh reach, file ownership, sudo, Komodo scope |
+| "What key does X?" on a llama-swap node | [`references/llama-swap-config.example.yaml`](references/llama-swap-config.example.yaml) | Upstream's annotated example, vendored at our version |
+| "What key does X?" in LiteLLM | [`references/litellm-config.examples.yaml`](references/litellm-config.examples.yaml) | Three upstream examples we actually match |
 
 ## The two commands worth memorising
 
@@ -127,6 +129,21 @@ ask.
 A real end-to-end check is one chat completion through `ai.` with the model id
 `<node>/<model-id>` — a model in `/v1/models` is a catalog entry, not proof the
 backend starts.
+
+## Upstream references, vendored
+
+Both are pinned to the version we run and carry provenance + hash in their
+header; neither is deployed.
+
+- `references/llama-swap-config.example.yaml` — upstream `docs/config.example.yaml`
+  at **tag v268** (the tag both nodes report), ~950 lines, every key documented
+  with default and meaning. Note the one divergence the header calls out: it
+  shows the newer `routing.router…` matrix form, our nodes use the older
+top-level `matrix:` block.
+- `references/litellm-config.examples.yaml` — LiteLLM has **no** single annotated
+  config; it keeps ~30 narrow examples. Three are vendored verbatim
+  (`simple_config`, `store_model_db_config`, `pass_through_config`), with the
+  docs URL for the full settings matrix.
 
 ## Gotchas
 
