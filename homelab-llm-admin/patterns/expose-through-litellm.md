@@ -43,11 +43,12 @@ and watches `/app/config/config.yaml`.
     # edit in place (sed -i, ed, cat >) — see the note below
     docker logs --tail 20 ai-litellm-1 | grep -i "WatchFiles detected"
 
-**Writing it matters.** The file is `sysops`-owned but its directory is
-`root:root`, so an editor that saves by write-then-rename (vim's default
-`backupcopy=no`, most GUI editors) fails there or leaves a root-owned file in
-place. Edit in place — `sed -i`, `ed`, `cat >` — or ask the user to run
-`sudo chown sysops:sysops /stackData/litellm/config` once.
+The directory is `sysops`-owned since 2026-10-30, so in-place edits, backups
+beside the file and write-then-rename saves all work. If that ever regresses
+(directory back to `root:root`), an editor that saves by rename — vim's default
+`backupcopy=no`, most GUI editors — fails there or leaves a root-owned file in
+place; `cd /stackData && unfuck` (host alias, needs sudo) restores it, then set
+the file back to `644`.
 
 A saved edit logs `WatchFiles detected changes in 'config/config.yaml'. Reloading…`
 and the worker comes back in ~1–2 s. **In-flight requests can drop** — reload is

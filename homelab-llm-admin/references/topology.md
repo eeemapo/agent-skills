@@ -30,15 +30,37 @@ a request, not a step).
 | `lax:/opt/ai/config/llama-swap/config.yaml` | `sysops:sysops`, dir `sysops` | fully writable; backup + atomic save fine |
 | `phx:/opt/ai/config/llama-swap/config.yaml` | `sysops:sysops`, dir `sysops` | same |
 | `phx:/opt/ai/strata`, `/opt/ai/hyperqwen`, `/opt/ai/nemotron` | `sysops` | weights are writable |
-| `mco:/stackData/litellm/config/config.yaml` | `sysops:sysops` | rewritable in place |
-| `mco:/stackData/litellm/config/` | `root:root 755` | **not** writable — no sibling files |
-| `mco:/stackData/litellm/` (parent) | `root:root` | create subdirs only as root |
+| `mco:/stackData` | `sysops:sysops` | writable, **setgid** (`drwxr-sr-x`) |
+| `mco:/stackData/litellm/config/` | `sysops:sysops 755` | writable since 2026-10-30 |
+| `mco:/stackData/litellm/config/config.yaml` | `sysops:sysops 644` | editable, backup-able, atomic-save-able |
 
-The directory restriction on `mco` is the only real friction: it blocks backups
-beside the file, editor swap files, and write-then-rename saves (vim's default).
-Durable fix, one root command:
+Before 2026-10-30 the `litellm/config` directory was `root:root 755`, which
+blocked backups, editor swap files and write-then-rename saves; it was fixed with
+the host's `unfuck` alias (see below) and the file set back to `644`.
 
-    sudo chown sysops:sysops /stackData/litellm/config
+### The `unfuck` alias
+
+Defined in `~/.bashrc` on the hosts (`sysops`):
+
+```bash
+alias unfuck='f(){ sudo chown -R ${1:-$USER:$USER} . && chmod -R 755 . && chmod g+s .; unset -f f; }; f'
+```
+
+It operates on the **current directory** (the optional argument is the
+*owner*, not a path), and it needs sudo. Consequences worth knowing:
+
+- `chmod -R 755` marks every **file** executable too — reset configs to `644`
+  afterwards (`chmod 644 /stackData/litellm/config/config.yaml`).
+- `chmod g+s .` is **not** recursive, so only the top directory becomes setgid.
+- It chowns recursively — check the scope first (`du -sh`, `ls`) on a big tree.
+
+### sudo
+
+The `sysops` sudo password for `mco` (and `lax`/`phx`) lives in the **`HL-INF`**
+vault — items `MCO`, `LAX`, `PHX`, field `password`. `HL-INF` is outside the
+default vault reach: it is an escalation the user grants (`/vault add <SA>`), not
+a routine lookup. Never put the password in a command line or a log; pipe it to
+`sudo -S` on stdin.
 
 ### Komodo
 

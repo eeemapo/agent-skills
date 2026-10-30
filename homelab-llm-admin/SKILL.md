@@ -64,15 +64,18 @@ treat anything root as a request to the user, never a routine step.
 |---|---|---|---|
 | `lax:/opt/ai/config/llama-swap/` | sysops | **yes**, dir + file | edit, backup, atomic save all fine |
 | `phx:/opt/ai/config/llama-swap/` | sysops | **yes**, dir + file | same |
-| `mco:/stackData/litellm/config/config.yaml` | sysops | file only | in-place rewrite works |
-| `mco:/stackData/litellm/config/` | `root:root` | **no** | no backups beside it, no `.swp`, no write-then-rename |
+| `mco:/stackData` + `…/litellm/config/` | sysops | **yes** (fixed 2026-10-30, setgid) | edit, backup, atomic save all fine |
 
-Because of that last row, on `mco` put backups in `/tmp` and edit with something
-that writes in place (`sed -i`, `ed`, `cat >`). Vim defaults to
-write-then-rename (`backupcopy=no`), which fails there — or worse, replaces the
-file with a root-owned one. The durable fix is a one-line root grant:
+All four are now writable, so edit in place *or* write-then-rename — both work.
+Two host-specific habits remain:
 
-    sudo chown sysops:sysops /stackData/litellm/config   # ask the user
+- **`unfuck`** is a `sysops` bash alias on the hosts: `cd <dir> && unfuck` runs
+  `chown -R $USER:$USER . && chmod -R 755 . && chmod g+s .`. It needs sudo. Note
+  that `chmod -R 755` also marks **regular files** executable — after running it,
+  drop config files back to `644`.
+- **Metadata counts as a change.** LiteLLM's watcher fires on inotify attribute
+  events, so a `chown`/`chmod` on `config.yaml` triggers a worker reload just like
+  an edit. Harmless, but the health endpoint returns nothing for a second or two.
 
 Secrets: the vault's default reach is `HL-OPS` **read-only** with manage OFF, so
 `vault_set`/`vault_new`/`vault_edit` are refused until the user arms
