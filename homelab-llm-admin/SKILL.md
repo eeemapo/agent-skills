@@ -27,6 +27,7 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
 
 | Your task involves... | Read this first | Why |
 |---|---|---|
+| "What's served?", "what key do I use?" | [`patterns/find-models-and-credentials.md`](patterns/find-models-and-credentials.md) | Three catalogues, per-endpoint credentials, 401/403/404 triage |
 | Add / remove / retune a model on a node | [`patterns/add-model-to-node.md`](patterns/add-model-to-node.md) | Stanza shapes, model dirs, matrix, reload + verify |
 | Make a model usable at `ai.armadillo-hops.ts.net` | [`patterns/expose-through-litellm.md`](patterns/expose-through-litellm.md) | `model_list` entry, hot reload, per-key scoping |
 | A change to compose/env/image/mounts | [`patterns/change-the-stack.md`](patterns/change-the-stack.md) | Repo → gitea → Komodo deploy, what restarts |
@@ -44,6 +45,18 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
     ssh mco ; $EDITOR /stackData/litellm/config/config.yaml
 
 Neither restarts a container and neither needs a Komodo deploy.
+
+## Credentials at a glance
+
+| Endpoint | Credential | Where |
+|---|---|---|
+| LiteLLM `ai.` (routine) | virtual key | `HL-OPS` → `litellm-ops` → `pi`/`public`/`work`/`openwebui` |
+| a node's llama-swap | node key | `HL-SRV` → `llama-swap-phx`/`-lax` → `credential` |
+| LiteLLM admin | master key | container env `LITELLM_MASTER_KEY` |
+| host sudo | password | `HL-INF` → `MCO`/`LAX`/`PHX` → `password` |
+
+Resolve with `vault_run`, reference by env-var name, never echo. Full recipes and
+the 401/403/404 table: [`patterns/find-models-and-credentials.md`](patterns/find-models-and-credentials.md).
 
 ## Access and permissions
 
@@ -149,6 +162,9 @@ top-level `matrix:` block.
 
 - **Config ≠ residency.** A stanza only describes how to start a backend. Models
   load on first request and unload after `ttl`/`unloadTimeout`.
+- **`/v1/models` counts aliases too.** Both nodes set `includeAliasesInList:
+  true`, so `phx` returns 13 names for 9 stanzas. Count stanzas in the config for
+  the model count; use `running` for what is actually loaded.
 - **A model in no matrix set can only run alone.** That is the safe default for
   a big model, and the reason a two-GPU model alongside a 9B will evict it.
 - **`startPort: 10001`** — llama-swap assigns `${PORT}` per model. Backends
