@@ -50,17 +50,19 @@ Neither restarts a container and neither needs a Komodo deploy.
 
 | Endpoint | Credential | Where |
 |---|---|---|
-| LiteLLM `ai.` (routine) | virtual key | `HL-OPS` → `litellm-ops` → `pi`/`public`/`work`/`openwebui` |
+| LiteLLM `ai.` (routine) | virtual key | `HL-OPS` → `litellm-ops` (one field per key; `vault_describe` lists them) |
 | a node's llama-swap | node key | `HL-SRV` → `llama-swap-phx`/`-lax` → `credential` |
 | LiteLLM admin | master key | container env `LITELLM_MASTER_KEY` |
 | host sudo | password | `HL-INF` → `MCO`/`LAX`/`PHX` → `password` |
 
-Resolve with `vault_run`, reference by env-var name, never echo. Full recipes and
-the 401/403/404 table: [`patterns/find-models-and-credentials.md`](patterns/find-models-and-credentials.md).
+Resolve with `vault_run`, reference by env-var name, never echo. Key labels are
+discovered with `vault_describe`, not remembered — a renamed or added key shows up
+there first. Full recipes and the 401/403/404 table:
+[`patterns/find-models-and-credentials.md`](patterns/find-models-and-credentials.md).
 
 ## Access and permissions
 
-From `las`, plain OpenSSH reaches all three hosts over the tailnet as `sysops`,
+From `las`, plain OpenSSH reaches every host over the tailnet as `sysops`,
 key-based, no password and no sudo:
 
     ssh lax     # GPU node, utility models
@@ -71,7 +73,7 @@ It is ordinary `sshd` over the tailnet, **not** `tailscale ssh`: the latter fail
 against the `tag:container` devices (`502` then connection refused on :22) even
 though `ssh <host>` works. Use `ssh`.
 
-`sysops` is in the `docker` group on all three, so `docker ps/logs/inspect/exec`
+`sysops` is in the `docker` group on every host, so `docker ps/logs/inspect/exec`
 work without elevation. `sudo` exists everywhere but **prompts for a password** —
 treat anything root as a request to the user, never a routine step.
 
@@ -162,9 +164,9 @@ top-level `matrix:` block.
 
 - **Config ≠ residency.** A stanza only describes how to start a backend. Models
   load on first request and unload after `ttl`/`unloadTimeout`.
-- **`/v1/models` counts aliases too.** Both nodes set `includeAliasesInList:
-  true`, so `phx` returns 13 names for 9 stanzas. Count stanzas in the config for
-  the model count; use `running` for what is actually loaded.
+- **`/v1/models` counts aliases too.** The nodes set `includeAliasesInList:
+  true`, so the list can be longer than the number of stanzas. Count stanzas in
+  the config for the model count; use `running` for what is actually loaded.
 - **A model in no matrix set can only run alone.** That is the safe default for
   a big model, and the reason a two-GPU model alongside a 9B will evict it.
 - **`startPort: 10001`** — llama-swap assigns `${PORT}` per model. Backends

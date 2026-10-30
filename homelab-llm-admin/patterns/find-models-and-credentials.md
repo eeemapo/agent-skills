@@ -31,21 +31,21 @@ All three at once, read-only:
 Raw equivalent: `GET /v1/models` (catalog), `GET /running` (residency),
 `GET /api/version`, `GET /api/profiles`.
 
-**Gotcha — aliases inflate the catalog.** Both nodes set
+**Gotcha — aliases inflate the catalog.** The nodes set
 `includeAliasesInList: true`, so `/v1/models` returns stanzas **plus** their
-aliases. `phx` reports **13** entries for **9** stanzas (4 aliases:
-`strata`, `strata128`, `qwen3.8-27b`, `qwen38-vllm`). Counting stanzas in the
-config file is the only way to count models; counting `/v1/models` counts
-callable names.
+aliases, and the list can be longer than the number of stanzas (with no marker
+saying which is which). Counting stanzas in the config file is the only way to
+count models; counting `/v1/models` counts callable names.
 
 ### Front-door level
 
     curl -s https://ai.armadillo-hops.ts.net/v1/models \
       -H "Authorization: Bearer $LITELLM_KEY" | jq -r '.data[].id'
 
-Ids are `<node>/<model-id>`. **The list is per key**: `pi`/`work`/`openwebui`
-see all 34, `public` sees 14 (its explicit list). An empty-looking list is
-usually the wrong key, not an empty gateway.
+Ids are `<node>/<model-id>`. **The list is per key**: an unscoped key sees every
+model, a scoped key sees only its explicit list. A short or empty list is usually
+the wrong key, not an empty gateway — compare two keys before concluding anything
+is missing.
 
 Browsers: `https://ai.armadillo-hops.ts.net/ui/` → **Models + Endpoints** → All
 Models (master key login).
@@ -59,10 +59,15 @@ without the node's API key — it is not a public dashboard. Use the script.
 
 | You want to call | Credential | Location | In default reach? |
 |---|---|---|---|
-| LiteLLM at `ai.` (normal work) | virtual key | vault **`HL-OPS`** → `litellm-ops` → `pi` / `public` / `work` / `openwebui` | **yes** |
-| a node's llama-swap API directly | node API key | vault **`HL-SRV`** → `llama-swap-phx` / `llama-swap-lax` → `credential` (+ `base_url`) | no — escalation |
+| LiteLLM at `ai.` (normal work) | virtual key | vault **`HL-OPS`** → `litellm-ops`, one field per key (`vault_describe` lists the labels) | **yes** |
+| a node's llama-swap API directly | node API key | vault **`HL-SRV`** → one item per node (`llama-swap-<node>`) → `credential` + `base_url` | no — escalation |
 | LiteLLM admin API / UI | master key | container env `LITELLM_MASTER_KEY` (`docker exec … printenv`) | docker group, no vault |
 | sudo on a host | password | vault **`HL-INF`** → `MCO` / `LAX` / `PHX` → `password` | no — escalation |
+
+**Labels are discovered, not remembered.** `vault_describe` on the item tells you
+which key fields exist right now; a renamed or newly minted key appears there
+first. The snippets below use `pi` as the example label — substitute whatever
+`vault_describe` reports.
 
 Always resolve through `vault_run` into an env var and reference it by name;
 never paste a value into chat, a command line, or a log.
@@ -102,7 +107,7 @@ Notes:
 | `401 Authentication Error, No api key passed` | no `Authorization` header at all |
 | `401 Unauthorized` from LiteLLM, key present | wrong/expired virtual key |
 | `401` from a node | using the LiteLLM key against `llama-swap-*` (different key space) |
-| model works with `pi`, `403`/model-not-found with `public` | key scoping — add the id to `public`'s list |
+| works with one key, `403`/model-not-found with another | key scoping — add the id to the scoped key's model list |
 | `404` at `ai.` | no `model_list` entry for that `<node>/<id>` |
 | `404` at the node | no such stanza (or an alias you typed instead of the id) |
 | id listed, request hangs then 502 | backend failed to start — check `docker logs ${MODEL_ID}`, then the node's stanza |

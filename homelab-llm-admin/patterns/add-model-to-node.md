@@ -1,5 +1,10 @@
 # Add, change or remove a model on a llama-swap node
 
+> **Example ids in this file are illustrative.** No model named here is
+> guaranteed to exist right now — stanzas get renamed and retired. The live
+> roster is `scripts/fleet-status.sh` (or the node's own `/v1/models`). Read the
+> shapes, substitute the real ids.
+
 Layer 1. One file per host, bind-mounted into the container:
 
     lax:  /opt/ai/config/llama-swap/config.yaml   (container: /llama-config/config.yaml)

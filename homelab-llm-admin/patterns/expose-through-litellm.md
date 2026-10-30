@@ -1,5 +1,10 @@
 # Expose a model through LiteLLM (`ai.armadillo-hops.ts.net`)
 
+> **Example ids in this file are illustrative.** No model named here is
+> guaranteed to exist right now — stanzas get renamed and retired. The live
+> roster is `scripts/fleet-status.sh` (or the node's own `/v1/models`). Read the
+> shapes, substitute the real ids.
+
 Layer 2. A model served by `lax` or `phx` is **not** reachable at the front door
 until it has a `model_list` entry. This is the most common "the model exists but
 I get 404" case.

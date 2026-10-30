@@ -22,7 +22,7 @@ over the tailnet address.
 
 ### What `sysops` may write
 
-`sysops` is in `docker` (all three hosts) and `sudo` (password required — root is
+`sysops` is in `docker` (every host) and `sudo` (password required — root is
 a request, not a step).
 
 | Path | Owner | Status |
@@ -93,7 +93,7 @@ scope answers, not missing items — switching tiers is the user's move.
                 llama-swap on <node> ──spawns──▶ backend on 127.0.0.1:${PORT}
 
 The model id at the front door is `<node>/<model-id>`, e.g.
-`phx/Qwen3.8-27B-vLLM`. The node-level id is what appears in that node's
+e.g. `phx/<model-id>` (illustrative). The node-level id is what appears in that node's
 llama-swap config.
 
 ## Hosts
@@ -151,7 +151,7 @@ llama-swap config.
 | URL | `https://ai.armadillo-hops.ts.net` (`/ui/` = admin) |
 | container | `ai-litellm-1` (shares `ai-ts-1` netns) |
 | image | `docker.litellm.ai/berriai/litellm:main-stable` |
-| version seen | v1.106.6 |
+| version | whatever `main-stable` resolves to (`docker inspect` labels) |
 | live config | `mco:/stackData/litellm/config/config.yaml` → `/app/config` |
 | reload | `--reload` + `watchfiles` on `PYTHONPATH=/watchfiles`, ~1–2 s |
 | state | Postgres `litellm` (`store_model_in_db: true`), Redis for rate limits |
@@ -178,17 +178,24 @@ Stored in Postgres; aliases in use:
 The key values live in the vault item `litellm-ops` (fields `pi`, `public`,
 `work`, `openwebui`), never in the repo.
 
-## Model id inventory (as of 2026-10-30)
+## Model roster — derive it, don't remember it
 
-`lax` — `Cyber-Tiel-Coder`, `gemma-4-E4B-it-0/-1`, `Qwen3.5-9B-0/-1`,
-`Qwen3.8-27B`, `audiocpp`, `PaddleOCR-VL`, `GLM-OCR`, `granite-docling-258m`,
-`Unlimited-OCR`, `doc-models`, `embeddinggemma-2`, `d1-3B`
+This file deliberately carries **no** model list. Stanzas are renamed, added and
+retired often enough that a written inventory is guaranteed to be wrong, and a
+wrong inventory is worse than none: it sends you looking for something that no
+longer exists, or assuming something exists that does not.
 
-`phx` — `Cyber-Tiel-Coder`, `gemma-4-E4B-it-0/-1`, `Qwen3.5-9B-0/-1`,
-`Qwen3.8-27B` (llama.cpp, 64K), `Qwen3.8-27B-vLLM` (TP=2, 128K, MTP),
-`Strata-Qwen3.6-35B`, `Strata-Qwen3.8-IQ2_XS`
+    bash <skill>/scripts/fleet-status.sh            # per-node ids + front-door ids
+    bash …/service-llama-swap/scripts/llama-swap.sh models   # one node, with context
 
-Re-derive with `scripts/fleet-status.sh`; treat this list as a hint, not truth.
+Three things that are *not* the roster, and get mistaken for it:
+
+- **`/v1/models` includes aliases** (`includeAliasesInList: true`), so it can
+  list more names than there are stanzas.
+- **A front-door id is namespaced** `<node>/<model-id>`; the node's own id is the
+  bare `model-id`.
+- **A listed id is a catalog entry, not a running backend.** `/running` is
+  residency.
 
 ## Matrix semantics (llama-swap routing)
 
