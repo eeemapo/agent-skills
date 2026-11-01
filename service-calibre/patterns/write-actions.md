@@ -18,6 +18,13 @@ so a model cannot trigger a mutation by accident or against an unstated library.
 wrapped: it corrupts files when misapplied. Treat it as a manual, single-book
 operation after explicit approval.
 
+Commands this script does not wrap — `set_custom`, `embed_metadata`, `trash`,
+`notes`, `items`, `annotations`, `data_files`, `virtual_libraries` — go
+through `raw`, which keeps the gate. The script options must precede it:
+
+    scripts/calibre.sh --library L --yes raw set_custom '#read' 12 yes
+    scripts/calibre.sh --library L --yes raw embed_metadata 12
+
 ## How to do it safely
 
 1. `show <id>` first and keep the output — it is your only before-state.

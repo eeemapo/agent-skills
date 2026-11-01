@@ -13,16 +13,18 @@ metadata:
 
 A Calibre deployment serves a library through a **content server** that speaks
 HTTP Digest auth and accepts the same commands as the local `calibredb` CLI.
-This contract covers the credential, the endpoint, the verbs an agent needs, and
-the traps. Wire format is in [`references/cdb-api.md`](references/cdb-api.md);
-the deterministic work is in [`scripts/calibre.sh`](scripts/calibre.sh).
+This contract covers the endpoint shape, the verbs an agent needs, and the traps.
+It assumes you already have the URL and the credential — acquiring them is the
+caller's job, not this skill's. Wire format is in
+[`references/cdb-api.md`](references/cdb-api.md); the deterministic work is in
+[`scripts/calibre.sh`](scripts/calibre.sh).
 
 ## How to use this skill
 
-1. Resolve the credential from the vault, and the base URL from the stack (see
-   **Configuration**) — one `vault_run` supplies the credential.
+1. Put `CALIBRE_URL`, `CALIBRE_USER` and `CALIBRE_PASSWORD` in the environment
+   (see **Environment**).
 2. Run a verb as a program (do **not** `source` it):
-   `bash <skill-dir>/scripts/calibre.sh {auth|libraries|list|count|…}`
+   `bash /home/sysops/.pi/agent/skills/service-calibre/scripts/calibre.sh {auth|libraries|list|count|…}`
    (absolute path — a bare `scripts/` path fails as "not found", which is a
    **path** problem, not an authentication failure).
 3. If a verb fails, read **Gotchas** before changing anything.
@@ -38,9 +40,9 @@ the deterministic work is in [`scripts/calibre.sh`](scripts/calibre.sh).
 
     scripts/calibre.sh --help
     # read (safe)
-    scripts/calibre.sh auth                        # verify the credential
+    scripts/calibre.sh auth [--library L]           # probe read access to a library
     scripts/calibre.sh libraries                    # library ids + server default (JSON)
-    scripts/calibre.sh list [--limit 20] [--search Q] [--fields title,authors]
+    scripts/calibre.sh list [--search Q] [--fields title,authors] [--for-machine]
     scripts/calibre.sh search <query>               # matching book ids
     scripts/calibre.sh show <id>                    # full metadata
     scripts/calibre.sh count                        # book count (id-based, see Gotchas)
@@ -51,48 +53,28 @@ the deterministic work is in [`scripts/calibre.sh`](scripts/calibre.sh).
     scripts/calibre.sh set-metadata <id> --field title:New --library L --yes
     scripts/calibre.sh add-format <id> <file> --library L --yes
     scripts/calibre.sh remove-format <id> <ext> --library L --yes
+    # escape hatch (see Gotchas)
+    scripts/calibre.sh [--library L] [--yes] raw <command> [args…]
 
 Every verb takes `--library <id>`; reads default to the server's default
-library, **writes must name it** (the script refuses otherwise).
+library, **writes must name it** (the script refuses otherwise). `raw` forwards
+everything after the command to `calibredb` verbatim, so it reaches the
+commands this script does not wrap — at the cost of script options having to come
+*before* it.
 
-## Configuration
+## Environment
 
-The credential lives in the vault; the base URL comes from the deployment's own
-config. Never hardcode either.
+Three variables, supplied by the caller. This skill does not acquire them.
 
-| Variable | Source | Meaning |
-|---|---|---|
-| `CALIBRE_URL` | the stack's `ts/ts-serve.json` (see below) | Content-server base URL **with** scheme, no trailing slash |
-| `CALIBRE_USER` | vault field `username` | Content-server user |
-| `CALIBRE_PASSWORD` | vault field `password` | That user's password |
+| Variable | Meaning |
+|---|---|
+| `CALIBRE_URL` | Content-server base URL **with** scheme, no trailing slash |
+| `CALIBRE_USER` | Content-server user |
+| `CALIBRE_PASSWORD` | That user's password |
 
-**Resolve `CALIBRE_URL` from the stack, not from memory.** The content server
-is not necessarily on 443: the stack publishes it as a separate listener, and the
-443 listener is often the *desktop GUI* instead. Read the stack's serve config —
-via Komodo (`komodo_stack_info` for the stack, then the repo file
-`<stack>/ts/ts-serve.json`) or from the repo checkout — and take:
-
-- the hostname from the entry that terminates TLS for the stack
-  (`TerminateTLS` / the `Web` key), and
-- the published port from the `TCP` entry whose `TCPForward` targets the
-  content server's internal port (calibre's content server listens on **8081**
-  inside the container; the GUI wrapper listens on 8080).
-
-A worked example from this homelab (`calibre/ts/ts-serve.json`):
-
-    "TCP": { "8082": { "TCPForward": "localhost:8081",
-                       "TerminateTLS": "<stack-hostname>" } }
-    →  CALIBRE_URL="https://<stack-hostname>:8082"
-
-One `vault_run` supplies the credential (base URL passed separately because the
-vault item carries no URL field):
-
-    vault_run({
-      "vault": "<vault-tier>",
-      "item": "calibre",
-      "fields": [{"name": "CALIBRE_USER", "field": "username"},
-                 {"name": "CALIBRE_PASSWORD", "field": "password"}],
-      "command": "CALIBRE_URL='https://<stack-hostname>:8082' bash <skill-dir>/scripts/calibre.sh count --library import"})
+`CALIBRE_URL` must point at the **content server**, not the desktop GUI. They are
+different ports on the same host and only one speaks this API — the GUI's
+`/ajax/*` 404s. See [`references/cdb-api.md`](references/cdb-api.md#topology).
 
 ## Gotchas
 
@@ -100,21 +82,22 @@ vault item carries no URL field):
   `400 Unsupported authentication method` — a *request-shape* error that looks
   nothing like a bad password. Use `curl --digest`, or `calibredb` (which
   negotiates it for you). There is no `/ajax/login` endpoint to fall back on.
-- **Do not point at port 443.** On a sidecar-exposed Calibre stack, 443 is
-  usually the *desktop GUI* (a Selkies/VNC web wrapper with `nginx` in front);
-  its `/ajax/*` 404s. The content server is the other listener — see
-  **Configuration**.
+- **Do not point `CALIBRE_URL` at the GUI port.** The desktop GUI (a Selkies/VNC
+  web wrapper with `nginx` in front) is a different listener from the content
+  server; its `/ajax/*` 404s. A 404 on every `/ajax/*` path is a wrong-port
+  symptom, not a wrong-credential one.
 - **Counting with `wc -l` overstates the library.** `calibredb list` wraps long
   titles onto extra lines, so a non-empty-line count can be ~1.7× the real number.
-  Use `scripts/calibre.sh count`, which counts ids.
+  Use `scripts/calibre.sh count`, which asks for `--for-machine` JSON and measures
+  the array.
 - **`calibredb search` prints ids**, not titles — pipe through `show` or use
   `list --search <query>` for a table.
 - **Anonymous reads may be allowed.** A server with auth enabled still answers
   `401` without credentials, but a server with anonymous access enabled answers
   reads fine and only refuses writes (`403 Anonymous users are not allowed to
-  changes`). A read "working" therefore does not prove the credential is valid —
-  prove it with a write-capability probe instead
-  ([`patterns/authenticate.md`](patterns/authenticate.md)).
+  changes`). A read "working" therefore does not prove the credential is valid,
+  and `auth ok` reports only that reads work — prove the credential with a
+  write-capability probe ([`patterns/authenticate.md`](patterns/authenticate.md)).
 - **A `200` from `/cdb/cmd/*` is not success.** Argument errors come back as
   HTTP 200 with `{"err": …}` in the body.
 - **Version skew is tolerable for these verbs.** A 6.x `calibredb` drives a 9.x
@@ -122,6 +105,12 @@ vault item carries no URL field):
   older client.
 - `--password` puts the value in the child's argv briefly. Never enable `set -x`
   or shell tracing around these calls.
+- **`raw` keeps the gate and refuses six commands.** `catalog`,
+  `add_custom_column`, `remove_custom_column`, `restore_database`,
+  `check_library` and `backup_metadata` cannot run against a remote library;
+  `raw` refuses them because the *server* does not — that check is client-side
+  only ([`references/cdb-api.md`](references/cdb-api.md)). Anything not on the
+  read-only allowlist still needs `--yes` and `--library`.
 
 ## Safety
 

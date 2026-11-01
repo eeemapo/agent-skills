@@ -5,15 +5,17 @@ MD5, `qop="auth"`). `calibredb` negotiates it; bare `curl` needs `--digest`.
 
 ## Steps
 
-1. Resolve `CALIBRE_URL` from the stack's serve config — the hostname plus the
-   port that forwards to the content server's internal **8081** (see
-   `../SKILL.md`, *Configuration*). Do not assume 443; that is often the desktop
-   GUI listener instead.
-2. Resolve `CALIBRE_USER` / `CALIBRE_PASSWORD` from the vault item that holds
-   them (`username` / `password`) inside a `vault_run`, so the values only ever
-   exist in the child's environment.
-3. Run `scripts/calibre.sh auth` — it lists one book through `calibredb` and
-   reports `auth ok`.
+1. You are given `CALIBRE_URL`, `CALIBRE_USER` and `CALIBRE_PASSWORD` in the
+   environment (see `../SKILL.md`, *Environment*). This skill does not acquire
+   them.
+2. Run `scripts/calibre.sh auth --library <id>` — it lists the library's ids
+   through `calibredb` and reports `auth ok`.
+3. Read the result as *read access*, not as credential proof: a server with
+   anonymous access answers reads too (see below).
+
+Name the library you actually care about. Without `--library` the probe runs
+against the server's **default** library, which is often not the one you are
+about to work on — the output names the library it used, so check it.
 
 ## Failure signals
 
@@ -24,6 +26,7 @@ MD5, `qop="auth"`). `calibredb` negotiates it; bare `curl` needs `--digest`.
 | `403 Anonymous users are not allowed to make changes` | The server resolved you as anonymous; reads may still work |
 | `404` from `/ajax/*`, `nginx` in the headers | Wrong port — you are on the GUI wrapper, not the content server |
 | `404` from `/ajax/login` | Expected: calibre has no login endpoint; auth is Digest only |
+| `error: library '<id>' not found` | The library id is wrong — list them with `libraries`. Not an auth problem |
 | Connection refused / TLS error | Wrong host or port, or your client is not on the network path to it |
 
 ## Proving the credential without mutating anything

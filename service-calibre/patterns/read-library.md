@@ -10,11 +10,18 @@ another. Library ids come from `scripts/calibre.sh libraries`:
 
     scripts/calibre.sh libraries                       # ids + default
     scripts/calibre.sh count --library import          # how many books
-    scripts/calibre.sh list --limit 20 --fields title,authors
-    scripts/calibre.sh list --search 'tags:unread' --limit 50
+    scripts/calibre.sh list --fields title,authors
+    scripts/calibre.sh list --search 'tags:unread'
+    scripts/calibre.sh list --for-machine --fields id,title,authors
     scripts/calibre.sh search 'author:"Some Author"'   # prints ids
     scripts/calibre.sh show <id>                       # full metadata
     scripts/calibre.sh categories                      # category/value counts
+    scripts/calibre.sh raw custom_columns              # custom columns
+    scripts/calibre.sh raw export 12 --to-dir /tmp/x   # export one book
+    scripts/calibre.sh raw fts_search "quantum"        # full-text search
+
+Anything not wrapped above is reachable through `raw`: everything after the
+command is passed to `calibredb` verbatim, so script options must precede it.
 
 `--search` and `search` take calibre's own search expression language
 (`tags:`, `author:`, `title:`, `format:`, `pubdate:`, boolean `and/or/not`).
@@ -23,12 +30,19 @@ another. Library ids come from `scripts/calibre.sh libraries`:
 
 - **Count ids, not lines.** `calibredb list` wraps long titles onto additional
   lines, so `| wc -l` or a non-empty-line count reports far more books than exist
-  (observed: 217 lines for 125 books). `scripts/calibre.sh count` is id-based.
+  (observed: 217 lines for 125 books). `scripts/calibre.sh count` is id-based: it
+  reads `--for-machine` JSON and measures the array, so wrapping cannot affect it.
+- **`list` returns the whole library.** There is no default cap, so on a large
+  library a `--search` expression is far cheaper than dumping everything.
 - **`search` returns ids**, not rows. Use `list --search …` for a table, or feed
   the ids to `show`.
-- **The table is column-wrapped for a terminal.** For machine-readable output use
-  `--fields id,title,authors` and split on runs of spaces, or query the CDB API
-  directly with `/cdb/cmd/list` (`../references/cdb-api.md`).
+- **The table is column-wrapped for a terminal.** Long values wrap onto extra
+  lines that carry no id, so splitting on runs of spaces invents rows with an
+  empty id — the same bug that makes `wc -l` wrong. For machine-readable output
+  use `--for-machine`, which emits JSON and turns wrapping off:
+  `list --for-machine --fields id,title,authors`. (`calibredb` accepts the same
+  flag on other verbs; `/cdb/cmd/list` is the fallback —
+  `../references/cdb-api.md`.)
 - **Book content** is downloadable: OPDS feeds under `/opds`, or
   `calibredb export` for a batch. Both require the credential when auth is on.
 
