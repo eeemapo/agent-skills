@@ -84,6 +84,7 @@ while [ $# -gt 0 ]; do
     --for-machine) machine=1; shift;;
     --field) field_args+=("${2:?--field needs name:value}"); shift 2;;
     --yes) yes=1; shift;;
+    --limit) echo "error: there is no --limit; 'list' returns the whole library (narrow it with --search)" >&2; exit 2;;
     -*) echo "error: unknown option: $1" >&2; usage; exit 2;;
     *) if [ -z "$verb" ]; then
          verb="$1"; shift

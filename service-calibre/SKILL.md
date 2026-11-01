@@ -33,6 +33,7 @@ caller's job, not this skill's. Wire format is in
 |----------------------|---------------------|-----|
 | Authenticating, or 400/401/403 | [`patterns/authenticate.md`](patterns/authenticate.md) | Digest trap and failure signals |
 | Listing, searching, counting books | [`patterns/read-library.md`](patterns/read-library.md) | Read verbs and the counting trap |
+| Field names, or "Unknown fields: …" | [`patterns/discover-fields.md`](patterns/discover-fields.md) | Discover valid fields at runtime |
 | Adding, removing, editing books | [`patterns/write-actions.md`](patterns/write-actions.md) | The `--yes` gate and irreversibility |
 | Exact endpoints and payload shapes | [`references/cdb-api.md`](references/cdb-api.md) | Wire-level catalog |
 

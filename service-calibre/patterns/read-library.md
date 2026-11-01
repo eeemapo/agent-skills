@@ -42,7 +42,8 @@ command is passed to `calibredb` verbatim, so script options must precede it.
   use `--for-machine`, which emits JSON and turns wrapping off:
   `list --for-machine --fields id,title,authors`. (`calibredb` accepts the same
   flag on other verbs; `/cdb/cmd/list` is the fallback —
-  `../references/cdb-api.md`.)
+  `../references/cdb-api.md`.) Valid field names are discovered, not remembered:
+  see [`discover-fields.md`](discover-fields.md).
 - **Book content** is downloadable: OPDS feeds under `/opds`, or
   `calibredb export` for a batch. Both require the credential when auth is on.
 
