@@ -42,6 +42,12 @@ Quote any `--field` value containing a space:
 An unquoted value is split by the shell; the script rejects the stray arguments
 rather than storing a truncated value.
 
+Multiple authors are separated by `&`, not by a comma:
+
+    set-metadata 18 --field "authors:Brian W. Kernighan & Dennis M. Ritchie" --library L --yes
+
+A comma inside `authors` does not create a second author.
+
 ## Failure signals
 
 - `Forbidden` / `403 Anonymous users are not allowed to make changes` — the

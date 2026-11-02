@@ -26,6 +26,17 @@ Empty output means the library defines none. Custom column labels are valid
 this is a *sample of the data*, not the schema — a field with no values in that
 library will not appear.
 
+## Fields accepted by set_metadata
+
+`list --help` covers read fields; writes take their own set:
+
+    calibredb --with-library "$CALIBRE_URL/#<lib>" --username ... --password ... \
+      set_metadata --list-fields
+
+That list is authoritative for `--field` (note: the title sort key is
+`sort`, not `title_sort` — though `title_sort` is accepted as an unlisted
+alias).
+
 ## Validate a candidate
 
 A wrong name is rejected with the offending names, so guessing is cheap to check:

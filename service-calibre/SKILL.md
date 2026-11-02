@@ -93,6 +93,9 @@ different ports on the same host and only one speaks this API — the GUI's
   the array.
 - **`calibredb search` prints ids**, not titles — pipe through `show` or use
   `list --search <query>` for a table.
+- **`show` prints sort keys in brackets.** `Author(s) : X [Y]` — the bracket is
+  `author_sort`, not a second author; `Title` likewise carries `sort`. Changing
+  `authors` or `title` does not update the bracket.
 - **Anonymous reads may be allowed.** A server with auth enabled still answers
   `401` without credentials, but a server with anonymous access enabled answers
   reads fine and only refuses writes (`403 Anonymous users are not allowed to

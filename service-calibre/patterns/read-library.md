@@ -26,6 +26,18 @@ command is passed to `calibredb` verbatim, so script options must precede it.
 `--search` and `search` take calibre's own search expression language
 (`tags:`, `author:`, `title:`, `format:`, `pubdate:`, boolean `and/or/not`).
 
+## Reading a record
+
+`show <id>` prints one field per line as `Label : value`. For authors and
+titles the **bracketed** value is the sort key, not a second value:
+
+    Author(s) : Elliott Mendelson [Mendelson, Elliott]
+    Title     : The C Programming Language, 2nd Edition [C Programming Language..., The]
+
+The bracket is `author_sort` / `sort`. Never read it as an extra author or an
+alternative title — and after changing `authors` or `title`, check the bracket
+separately, because it does not recompute.
+
 ## Traps
 
 - **Count ids, not lines.** `calibredb list` wraps long titles onto additional
