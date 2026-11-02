@@ -35,6 +35,13 @@ through `raw`, which keeps the gate. The script options must precede it:
    change is genuinely wanted, list the ids, show the user what will change, and
    get approval for the whole set — then still apply it id by id.
 
+Quote any `--field` value containing a space:
+
+    set-metadata 28 --field "authors:David K. Cheng" --library L --yes
+
+An unquoted value is split by the shell; the script rejects the stray arguments
+rather than storing a truncated value.
+
 ## Failure signals
 
 - `Forbidden` / `403 Anonymous users are not allowed to make changes` — the

@@ -165,6 +165,7 @@ case "$verb" in
   set-metadata)
     need_yes; need_lib
     [ ${#pos[@]} -ge 1 ] || { echo "set-metadata needs <id>" >&2; exit 2; }
+    [ ${#pos[@]} -le 1 ] || { echo "error: unexpected argument '${pos[1]}' - quote the --field value so it stays one argument" >&2; exit 2; }
     [ ${#field_args[@]} -ge 1 ] || { echo "set-metadata needs at least one --field <name:value>" >&2; exit 2; }
     args=(set_metadata "${pos[0]}")
     for f in "${field_args[@]}"; do args+=(--field "$f"); done
