@@ -1,23 +1,21 @@
-# Get the weights: cache, preseed, or a named file
+# Get the weights: name the quant, land it in the model tree
 
-A stanza needs weights before it can start. There are two mechanisms, and
-llama-swap itself has **no downloader** — it just runs your command, so the
-mechanism is whatever the command implies.
+A stanza needs weights before it can start. llama-swap itself has **no
+downloader** — it just runs your command, so the mechanism is whatever the
+command implies.
 
-| Mechanism | Stanza says | Download happens | First load |
-|---|---|---|---|
-| HF cache | `-hf <repo> -hff <file.gguf>` | llama.cpp, **at load time**, into `/hf-cache` | may fetch tens of GB; can outlast the health check |
-| Preseeded file | `-m /models/<file.gguf>` or a `-hf` whose cache you already warmed | you, beforehand | reads from disk |
+## How weights are referenced today
 
-**Default to the cache — but warm it first.** Both nodes mount the host HF cache
-into the container (`HF_HUB_CACHE=/hf-cache`, host
-`~/.cache/huggingface/hub`), so a host-side download populates exactly what
-`-hf` reads. Keep the stanza as `-hf`, and preseed with `hf` on the host:
+Both nodes mount one tree, `/opt/ai/models` → `/models` (read-only on `lax`,
+writable on `phx`), and **every stanza passes absolute paths**:
 
-    ssh phx
-    hf download <org>/<repo>-GGUF <exact-file.gguf> --quiet
+    -m       /models/llama-cpp/<model>/<main>.gguf
+    --mmproj /models/llama-cpp/<model>/<mmproj>.gguf     # vision
+    -md      /models/llama-cpp/<model>/<drafter>.gguf    # speculative decoding
 
-That converts a lazy network fetch into a local read without changing the stanza.
+There is **no `/hf-cache` mount and no `/custom` mount** (retired 2026-11-04),
+so `-hf`/`-hff` stanzas are gone: llama.cpp would have nowhere to resolve the
+repo. Do not reintroduce one — download to disk and point at the file.
 
 ## Name the quant. Always.
 
@@ -31,8 +29,9 @@ you will not notice until the disk is full.
     # a split model: every shard of ONE quant
     hf download unsloth/Some-Model-GGUF --include "*UD-Q4_K_XL*"
 
-    # split model + vision projector (only if the stanza passes one)
-    hf download unsloth/Some-Model-GGUF --include "*UD-Q4_K_XL*" --include "*mmproj*"
+    # split model + vision projector + drafter (only if the stanza passes them)
+    hf download unsloth/Some-Model-GGUF --include "*UD-Q4_K_XL*" \
+        --include "*mmproj*" --include "*dflash*"
 
 Rules:
 
@@ -42,47 +41,52 @@ Rules:
 - **Split models need every shard.** A partial set fails at load with a missing
   shard, not a friendly message.
 - **Vision needs its `mmproj`.** Without it, `capabilities.in: [image]` lies.
-- **MTP/draft heads are separate files** when the stanza passes one.
+- **MTP/DFlash/draft heads are separate files** when the stanza passes one.
 - Long pulls: background them and keep the log —
   `setsid nohup hf download … > /opt/ai/download-<name>.log 2>&1 &`
+- Download **as `sysops`**, never as root, or the container cannot read the file.
 
-## When to preseed into a model directory instead
+## Where weights go
 
-Sibling-container backends (Strata, vLLM/HyperQwen, Momoe) do **not** read the HF
-cache and do **not** inherit `HF_TOKEN` — their weights must exist on the host and
-be mounted `:ro`. Use `--local-dir`:
+    /opt/ai/models/llama-cpp/<model>/       one directory per model, all its GGUFs
+    /opt/ai/models/audio-cpp/               audio.cpp trees + _framework (lax)
+    /opt/ai/models/vllm/<model>/            vLLM weights (lax)
+    /opt/ai/models/onnx/                    reserved for the doc-models image
 
-    hf download <repo> <file> --local-dir /opt/ai/<tree>/models/<name>
+Download into a staging directory on the same filesystem, then move the files in,
+so an interrupted pull never leaves a half-file where a stanza points:
 
-`--local-dir` lands **outside** the cache, so `-hf` will not find it — the stanza
-must mount and reference the path explicitly.
+    ssh phx
+    hf download <repo> --local-dir /opt/ai/_dl/<model> --include "<file>.gguf"
+    mkdir -p /opt/ai/models/llama-cpp/<model>
+    mv /opt/ai/_dl/<model>/*.gguf /opt/ai/models/llama-cpp/<model>/
+    rm -rf /opt/ai/_dl
 
-### Where weights go
+`--local-dir` also writes a `.cache/huggingface` metadata directory; throwing
+the staging dir away keeps the model tree to plain `.gguf` files, like the
+existing ones.
 
-| Node | Preferred | Notes |
-|---|---|---|
-| `phx` | `/opt/ai/strata/models/…`, `/opt/ai/hyperqwen/models`, `/opt/ai/nemotron/models` | NVMe root. **Not `/tank`** — spinning rust, and load time is disk-bound |
-| `lax` | `/opt/ai/models/<name>` (bulk), `/opt/ai/custom` (one-offs) | root is the tighter filesystem here |
-
-Check free space on the *right* filesystem before committing to a pull
-(`df -h /` vs `df -h /tank`) — a 100 GB model on the tighter root is a bad
-afternoon. Ownership matters too: download as `sysops`, never as root, or the
-container cannot read the file.
+Check free space on the *right* filesystem first (`df -h /`; `lax` and `phx` both
+load from the root volume, and `/tank` on `lax` is a separate 1.8 TB spinner).
 
 ## Verify before wiring it up
 
-- **Size**: `ls -lh`, compare with the repo's blob size.
-- **Hash**: `sha256sum` when the repo or your notes carry a pin.
-- **Reachability**: after the stanza points at it, the first request should be
-  fast. A minute-plus first load means it is still downloading, not loading.
+- **Size**: `ls -lh`, compare with the repo's file listing
+  (`https://huggingface.co/api/models/<repo>/tree/main?recursive=true`).
+- **It is the file it claims to be**: read the GGUF metadata — architecture,
+  layer count, context, and for an mmproj `general.type: mmproj`
+  (`references/topology.md` and `patterns/inspect-a-gguf.md`).
+- **Reachability**: after the stanza points at it, the first request should be a
+  load, not a download. A minute-plus with the network busy means it is not the
+  file you think it is.
 
 ## Traps
 
 | Symptom | Cause |
 |---|---|
-| first request hangs, then `health check timed out` | lazy `-hf` download outlasted the timeout — preseed it |
+| first request hangs, then `health check timed out` | cold 20 GB load outlasted the global 300 s — raise the stanza's `healthCheckTimeout` |
+| `failed to load model` / file not found | path is host-absolute (`/opt/ai/...`) instead of container (`/models/...`) |
 | `hf download` filled the disk | repo-wide pull; you wanted one filename |
-| `failed to load model` after `--local-dir` | `-hf` looks in the cache, `--local-dir` is not there — mount the path instead |
 | permission denied on a mounted file | downloaded as root |
-| weights load at ~50 MB/s | sitting on `/tank` (spinning) instead of the NVMe root |
+| weights load at ~50 MB/s | sitting on `/tank` (spinning) instead of the root NVMe |
 | 401/403 from `hf` | no token on the host; the containers get one at deploy, the host may not |

@@ -11,11 +11,16 @@ I get 404" case.
 
 ## Where the file is
 
-    mco:/stackData/litellm/config/config.yaml      ← live, host-owned, NOT in git
-    container: /app/config/config.yaml             ← bind mount
+    mco:/opt/docker/deploy/ai/config/litellm/config.yaml   ← live, the bind source
+    container: /app/config/config.yaml                      ← bind mount
 
-The repo copy `ai/config/litellm/config.yaml` in `~/repos/komodo` is a **stub**.
-Editing it changes nothing at runtime and forces a restart on the next deploy.
+The deploy tree is the stack's git checkout, so edit there and commit. There is
+**no** orchestration plane to deploy through — Komodo was decommissioned
+2026-11-02, which is also why the file can live in the checkout.
+
+Verify the bind before debugging anything: `docker inspect ai-litellm-1` must
+show `/opt/docker/deploy/ai/config/litellm → /app/config`. A `/stackData/...`
+copy is a pre-migration leftover — editing it changes nothing.
 
 ## Step 1 — add the entry
 
@@ -44,16 +49,17 @@ The container runs `--reload`; `watchfiles` is installed into
 and watches `/app/config/config.yaml`.
 
     ssh mco
-    cp -a /stackData/litellm/config/config.yaml /tmp/litellm.yaml.bak   # dir is root-owned
+    cd /opt/docker/deploy/ai
+    cp -a config/litellm/config.yaml /tmp/litellm.yaml.bak
+    # edit config/litellm/config.yaml, then git commit -am "litellm: <what>"
     # edit in place (sed -i, ed, cat >) — see the note below
     docker logs --tail 20 ai-litellm-1 | grep -i "WatchFiles detected"
 
-The directory is `sysops`-owned since 2026-10-30, so in-place edits, backups
-beside the file and write-then-rename saves all work. If that ever regresses
-(directory back to `root:root`), an editor that saves by rename — vim's default
-`backupcopy=no`, most GUI editors — fails there or leaves a root-owned file in
-place; `cd /stackData && unfuck` (host alias, needs sudo) restores it, then set
-the file back to `644`.
+The checkout and its `config/litellm/` directory are `sysops`-owned, so
+in-place edits, backups beside the file and write-then-rename saves all work. If
+ownership ever regresses to `root:root`, a rename-saving editor fails there or
+leaves a root-owned file; `cd /opt/docker/deploy/ai && unfuck` (host alias, needs
+sudo) restores it, then set config files back to `644`.
 
 A saved edit logs `WatchFiles detected changes in 'config/config.yaml'. Reloading…`
 and the worker comes back in ~1–2 s. **In-flight requests can drop** — reload is
@@ -65,13 +71,13 @@ If it does **not** reload:
 |---|---|
 | `Started reloader process [1] using StatReload` | `watchfiles` missing from `PYTHONPATH`; fix the `init` service, not the config |
 | CPU pegged ~100% | same cause — StatReload stat-scans every `*.py` under `/app` |
-| no reload line at all | file edited in the wrong place (repo stub instead of `/stackData`) |
+| no reload line at all | file edited in the wrong place (the stale `/stackData` copy, not `/opt/docker/deploy/ai/config/litellm/`) |
 | reload line, but the model is unchanged | the edit was reverted by a write-then-rename, or landed in a stale copy |
 
 ## Step 3 — virtual-key scoping
 
 Keys live in LiteLLM's Postgres (`store_model_in_db: true`), not in the YAML.
-Aliases in use: `pi`, `work`, `openwebui`, `public`.
+Aliases in use: `pi`, `work`, `public` (the OpenWebUI key is parked).
 
 - `models: []` → the key reaches **every** model (all but `public`).
 - `public` carries an **explicit list**, so a newly added model is invisible to

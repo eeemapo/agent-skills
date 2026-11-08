@@ -1,8 +1,8 @@
 ---
 name: homelab-llm-admin
-description: Administer the homelab LLM serving stack end to end — add, remove, retune, or retire a model on a llama-swap node (lax/phx) and expose it through the LiteLLM front door (MCO), including where config files live, which edits hot-reload versus which need a Komodo deploy, matrix/concurrency and eviction rules, GGUF and docker-run stanza shapes, and virtual-key model scoping. Use when adding a model to the fleet, when a model is missing or 401/404s through ai.armadillo-hops.ts.net, when editing llama-swap or LiteLLM config, when deciding if a change needs a container restart, or when asked how models are served across lax, phx and MCO.
+description: Administer the homelab LLM serving stack end to end — add, remove, retune, or retire a model on a llama-swap node (lax/phx) and expose it through the LiteLLM front door (MCO), including where config files live, which edits hot-reload versus which need a compose run, matrix/concurrency and eviction rules, GGUF and docker-run stanza shapes, and virtual-key model scoping. Use when adding a model to the fleet, when a model is missing or 401/404s through ai.armadillo-hops.ts.net, when editing llama-swap or LiteLLM config, when deciding if a change needs a container restart, or when asked how models are served across lax, phx and MCO.
 license: MIT
-compatibility: pi on las with ssh to lax, phx and mco. Reads llama-swap and LiteLLM config on the hosts, plus optional Komodo tools for stack deploys. Read-only by default; every write is called out explicitly.
+compatibility: pi on las with ssh to lax, phx and mco. Reads llama-swap and LiteLLM config on the hosts. Read-only by default; every write is called out explicitly.
 metadata:
   version: "1.0"
   spec: Agent Skills 1.0
@@ -16,9 +16,9 @@ and is reachable in layer 2; layer 3 is only for secrets and stack shape.
 
 | Layer | What it is | Where it lives | Change cost |
 |---|---|---|---|
-| 1. Node | `llama-swap` on `lax` or `phx` — owns the GPUs, spawns backends, swaps models | `/opt/ai/config/llama-swap/config.yaml` on that host | **hot reload, ~2 s** |
-| 2. Front door | `LiteLLM` on `MCO` — virtual keys, model scoping, budgets, spend logs | `/stackData/litellm/config/config.yaml` on `mco` | **hot reload, ~1–2 s** |
-| 3. Stack | compose files, env, mounts, images | `~/repos/komodo/<stack>/` → gitea → Komodo deploy | **restart / new container** |
+| 1. Node | `llama-swap` on `lax` or `phx` — owns the GPUs, spawns backends, swaps models | `/opt/docker/deploy/llama-swap-<node>/config/llama-cpp/config.yaml` (container: `/llama-config/config.yaml`) | **hot reload, ~2 s** |
+| 2. Front door | `LiteLLM` on `MCO` — virtual keys, model scoping, budgets, spend logs | `/opt/docker/deploy/ai/config/litellm/config.yaml` on `mco` (container: `/app/config/config.yaml`) | **hot reload, ~1–2 s** |
+| 3. Stack | compose files, env, mounts, images | `/opt/docker/deploy/<stack>` on the host — a git checkout of `homelab/stack-<stack>` | **restart / new container** |
 
 Clients talk to `https://ai.armadillo-hops.ts.net` (LiteLLM). LiteLLM calls each
 node's `llama-swap` over the tailnet by `<node>/<model-id>`.
@@ -33,30 +33,38 @@ node's `llama-swap` over the tailnet by `<node>/<model-id>`.
 | Is this file what it claims to be? | [`patterns/inspect-a-gguf.md`](patterns/inspect-a-gguf.md) | Header/metadata forensics with `scripts/gguf-inspect.py` |
 | Empty answers, runaway reasoning, "thinking" knobs | [`patterns/thinking-modes.md`](patterns/thinking-modes.md) | Template vs server vs request, and where the tokens went |
 | Make a model usable at `ai.armadillo-hops.ts.net` | [`patterns/expose-through-litellm.md`](patterns/expose-through-litellm.md) | `model_list` entry, hot reload, per-key scoping |
-| A change to compose/env/image/mounts | [`patterns/change-the-stack.md`](patterns/change-the-stack.md) | Repo → gitea → Komodo deploy, what restarts |
+| A change to compose/env/image/mounts | [`patterns/change-the-stack.md`](patterns/change-the-stack.md) | Deploy-tree checkout + compose run, what restarts |
 | Host paths, ports, vault items, matrix semantics | [`references/topology.md`](references/topology.md) | The map: who runs what, where the files are |
-| Whether you can even edit/deploy something | **Access and permissions** below | ssh reach, file ownership, sudo, Komodo scope |
+| Whether you can even edit/deploy something | **Access and permissions** below | ssh reach, file ownership, sudo, vault reach |
 | "What key does X?" on a llama-swap node | [`references/llama-swap-config.example.yaml`](references/llama-swap-config.example.yaml) | Upstream's annotated example, vendored at our version |
 | "What key does X?" in LiteLLM | [`references/litellm-config.examples.yaml`](references/litellm-config.examples.yaml) | Three upstream examples we actually match |
 
-## Weights: warm the cache, name the quant
+## Weights: one directory per model, said by absolute path
 
-Both nodes mount the host HF cache at `/hf-cache`, so a host-side
-`hf download <repo> <file>.gguf` makes an `-hf` stanza's first load local.
-**Always name the specific quant file** — a bare `hf download <repo>` pulls every
-quant and shard in the repo. Sibling containers (Strata/vLLM) cannot read the
-cache: their weights must be on disk and mounted `:ro`. Details, placement and
-traps: [`patterns/download-and-preseed-weights.md`](patterns/download-and-preseed-weights.md).
+Both nodes mount `/opt/ai/models` → `/models` and every stanza names its files
+(`-m` / `--mmproj` / `-md`) under `/models/llama-cpp/<model>/`. There is no
+`/hf-cache` and no `/custom` mount any more (retired 2026-11-04), so download to
+disk first. **Always name the specific quant file** — a bare `hf download <repo>`
+pulls every quant and shard in the repo. Details, placement and traps:
+[`patterns/download-and-preseed-weights.md`](patterns/download-and-preseed-weights.md).
 
 ## The two commands worth memorising
 
     # layer 1 — on the node, edit in place; llama-swap polls and reloads in ~2 s
-    ssh phx ; $EDITOR /opt/ai/config/llama-swap/config.yaml
+    ssh phx ; $EDITOR /opt/docker/deploy/llama-swap-phx/config/llama-cpp/config.yaml
 
     # layer 2 — on MCO, edit in place; the LiteLLM worker reloads in ~1–2 s
-    ssh mco ; $EDITOR /stackData/litellm/config/config.yaml
+    ssh mco ; $EDITOR /opt/docker/deploy/ai/config/litellm/config.yaml
 
-Neither restarts a container and neither needs a Komodo deploy.
+Neither restarts a container and neither needs a compose run.
+
+The node config is the stack's own git checkout, so **commit after editing**.
+The bind is resolved when the container *starts*: re-materialising
+`/opt/docker/deploy/<stack>` under a running container (rsync into a fresh
+directory, `rm -rf` + re-clone) leaves it bound to the deleted inode —
+`/llama-config` then lists empty and hot reload silently stops while the stale
+in-memory config keeps serving. `docker restart <container>` restores it;
+verify with `docker exec … md5sum /llama-config/config.yaml` against the host file.
 
 ## Credentials at a glance
 
@@ -91,9 +99,9 @@ treat anything root as a request to the user, never a routine step.
 
 | Path | Owner | Writable by `sysops` | Consequence |
 |---|---|---|---|
-| `lax:/opt/ai/config/llama-swap/` | sysops | **yes**, dir + file | edit, backup, atomic save all fine |
-| `phx:/opt/ai/config/llama-swap/` | sysops | **yes**, dir + file | same |
-| `mco:/stackData` + `…/litellm/config/` | sysops | **yes** (fixed 2026-10-30, setgid) | edit, backup, atomic save all fine |
+| `lax:/opt/docker/deploy/llama-swap-lax/config/llama-cpp/` | sysops | **yes**, dir + file | edit, commit, atomic save all fine |
+| `phx:/opt/docker/deploy/llama-swap-phx/config/llama-cpp/` | sysops | **yes**, dir + file | same |
+| `mco:/opt/docker/deploy/ai/config/litellm/` | sysops | **yes** | edit, commit, atomic save all fine |
 
 All four are now writable, so edit in place *or* write-then-rename — both work.
 Two host-specific habits remain:
@@ -118,7 +126,7 @@ What **does** still need more, and from where:
 | root on a host (packages, users, root-owned paths, daemon config) | `sudo` | `HL-INF` (`MCO`/`LAX`/`PHX`) — **per-session** escalation |
 | call a node's API with its own key instead of via LiteLLM | node keys | `HL-SRV` — outside the default reach |
 | any vault **write** | manage mode | user arms `/vault manage` |
-| layer-3 change to the `ai` stack | Komodo Write on that stack | user grants it in Komodo (not vault) |
+| layer-3 change to a stack | none beyond `sysops` + docker | the deploy tree is a git checkout you own |
 
 Two honest caveats: the `docker` group is root-equivalent (`docker run -v /:/host`),
 so "no sudo" is not "no authority"; and an escalated vault reach is **memory-only
@@ -130,10 +138,11 @@ Secrets: the vault's default reach is `HL-OPS` **read-only** with manage OFF, so
 `/vault manage`. `HL-SRV` / `HL-INF` are outside the default reach by design —
 naming them is an escalation to ask for, not a routine lookup.
 
-Komodo reads every stack, but **write is per-stack**: deploys of
-`llama-swap-phx` succeed while `ai` answers `insufficient permissions: Must have
-at least Write`. A permission refusal is not a YAML or syntax problem — stop and
-ask.
+There is **no orchestration plane** (Komodo was decommissioned 2026-11-02):
+every stack is a git checkout on its host and `docker compose` there is the
+supported path. A stack change is an edit in that checkout plus a compose run;
+nothing else has to be asked for — see
+[`patterns/change-the-stack.md`](patterns/change-the-stack.md).
 
 ## Decision flow
 
@@ -215,9 +224,12 @@ top-level `matrix:` block.
 
 - Do not `docker run` a llama.cpp/vLLM container by hand as a lasting service —
   it goes in a stanza (layer 1) or a deployment/stack (layer 3).
-- Do not edit `/opt/ai/config/llama-swap/config.yaml` **inside** the container;
-  the host file is the bind-mounted source.
+- Do not edit the config **inside** the container; the deploy-tree file
+  (`/opt/docker/deploy/llama-swap-<node>/config/llama-cpp/config.yaml`) is the
+  bind-mounted source, and it is a git checkout — commit there.
 - Do not "fix" a missing model by restarting llama-swap or LiteLLM; both watch
   their config. Restarting only helps when the *container* changed.
+- Do not go looking for Komodo: it is gone (decommissioned 2026-11-02). The
+  deploy tree on the host is the state.
 - Do not add a model to one node and assume the other serves it; `lax` and `phx`
   have independent configs and different GPUs.

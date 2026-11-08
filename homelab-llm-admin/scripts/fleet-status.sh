@@ -17,7 +17,8 @@ say() { printf '%s\n' "$*"; }
 hdr() { printf '\n== %s ==\n' "$*"; }
 
 node_models() {  # $1 = host
-  local host=$1 cfg=/opt/ai/config/llama-swap/config.yaml
+  local host=$1
+  local cfg=/opt/docker/deploy/llama-swap-$host/config/llama-cpp/config.yaml
   if ! ssh -o BatchMode=yes -o ConnectTimeout=8 "$host" "test -r $cfg" 2>/dev/null; then
     say "  (cannot read $cfg on $host)"
     return
@@ -52,6 +53,6 @@ if [ "$want_litellm" = 1 ]; then
 fi
 
 hdr "reminders"
-say "  node config  : /opt/ai/config/llama-swap/config.yaml   (hot reload, ~2 s)"
-say "  front door   : mco:/stackData/litellm/config/config.yaml (hot reload, ~1-2 s)"
+say "  node config  : /opt/docker/deploy/llama-swap-<node>/config/llama-cpp/config.yaml   (hot reload, ~2 s)"
+say "  front door   : mco:/opt/docker/deploy/ai/config/litellm/config.yaml (hot reload, ~1-2 s)"
 say "  a model in the catalogue is not proof the backend starts — send one completion"

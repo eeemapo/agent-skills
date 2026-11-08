@@ -13,55 +13,61 @@ var, a new image, a new service. Never for a model entry: those hot-reload.
 | new secret / env var | **3** |
 | change LiteLLM's *container* flags (`--reload`, etc.) | **3** |
 
+## Where a stack lives
+
+Every stack is its own git repo (`homelab/stack-<name>`) deployed as a checkout
+on its host:
+
+    /opt/docker/deploy/<name>     compose.yaml · .env · secrets.env.tpl · config/
+    /opt/docker/data/<name>       runtime state, bind-mounted
+
+There is **no orchestration plane** — Komodo was decommissioned 2026-11-02 — so
+the checkout on the host **is** the deployment, and `git` in it is authoritative.
+
 ## The flow
 
-    cd ~/repos/komodo            # trimatrix/komodo, branch main
-    $EDITOR <stack>/compose.yaml
-    git commit -am "<stack>: <what and why>"
+    ssh phx
+    cd /opt/docker/deploy/llama-swap-phx
+    $EDITOR compose.yaml
+    git commit -am "phx: <what and why>"
     git push origin main
 
-Then deploy through Komodo (tools `komodo_stack_action` with `action: deploy`,
-or the UI). Komodo pulls the repo and runs `docker compose up -d` with the
-stack's `op run` wrapper, so secrets resolve at deploy time.
+    set -a; . /etc/op-connect/connect.env; set +a
+    op run --env-file=secrets.env.tpl -- docker compose up -d --remove-orphans --wait
 
-**Order matters:** commit and push *before* deploy. Komodo deploys the git
-state, not your working tree; a deploy with uncommitted edits silently ships the
-previous commit.
+`op run --env-file=secrets.env.tpl` resolves the stack's `op://` references at
+launch, so secrets never enter the repo. `den` is the exception: it uses the DMZ
+service account in `/etc/op-den/sa.env` (scoped to `HL-DMZ`, not Connect).
 
-## What a deploy restarts
+Commit **before** the compose run: the checkout is the deploy artifact, and a
+re-clone has to reproduce what is running.
+
+## What a compose run restarts
 
 `docker compose up -d` recreates only the services whose definition changed.
-A config-only edit to a bind-mounted file (`config/litellm/config.yaml`,
-`/opt/ai/config/llama-swap/config.yaml`) does **not** need a deploy at all —
-those files are host-owned precisely so they can be edited live.
+A config-only edit to a bind-mounted file
+(`config/llama-cpp/config.yaml`, `config/litellm/config.yaml`) does **not** need
+one at all — those files hot-reload, which is why they live in the checkout
+rather than in the image.
 
-`config_files` entries in the Komodo stack (`requires: Restart` / `Redeploy`)
-are the exception: Komodo compares tracked-file hashes and will restart the
-service on the next deploy. That is why the LiteLLM config was moved out of the
-repo — a YAML tweak must not cost a restart.
+## Anchors
 
-## Selecting which files Komodo tracks
-
-`komodo_stack_apply` with `config.config_files` changes the tracked set, e.g.
-drop the LiteLLM config and keep only `ts/ts-serve.json`:
-
-```json
-{"config_files": [{"path": "ts/ts-serve.json", "requires": "Restart"}]}
-```
-
-This needs **Write** permission on the stack. If it is refused, ask the user —
-a permission refusal is not a syntax problem, and retrying will not fix it.
+`gitea` and `op-connect` are hand-run: never "deploy" them from anything else,
+and never `down -v` either — the volumes are the data.
 
 ## Rules
 
-- **Never** hand-edit files inside a container or under
-  `/etc/komodo/repos/Komodo/…`; those are deploy artifacts and get overwritten.
-- **Never** `docker compose up` on a node by hand for a durable change — use the
-  Komodo deploy so the repo and the running state stay the same thing.
+- **Never** hand-edit files inside a container; the host file is the source.
+- **Never** re-materialise `/opt/docker/deploy/<stack>` under a running
+  container (`rm -rf` + re-clone, rsync into a fresh directory). The bind is
+  resolved at container start, so the container keeps the deleted inode:
+  hot reload stops silently while the stale in-memory config keeps serving.
+  `docker restart <container>` restores it; verify with
+  `docker exec … md5sum /llama-config/config.yaml` against the host file.
 - Pin images by digest for anything a model depends on; `:latest` is how a
   working stack becomes a mystery.
-- A stack deploy can restart a service that had nothing to do with your change
-  (dependency health, `--remove-orphans`). Check the deploy output, not just
-  `Success`.
-- After a deploy, re-verify at the edge (`https://ai.armadillo-hops.ts.net/v1/models`)
-  — a healthy container is not a working route.
+- A compose run can restart a service that had nothing to do with your change
+  (dependency health, `--remove-orphans`). Watch the output, not just `Started`.
+- After a stack change, re-verify at the edge
+  (`https://ai.armadillo-hops.ts.net/v1/models`) — a healthy container is not a
+  working route.

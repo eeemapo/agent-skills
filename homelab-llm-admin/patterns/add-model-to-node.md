@@ -7,14 +7,14 @@
 
 Layer 1. One file per host, bind-mounted into the container:
 
-    lax:  /opt/ai/config/llama-swap/config.yaml   (container: /llama-config/config.yaml)
-    phx:  /opt/ai/config/llama-swap/config.yaml
+    lax:  /opt/docker/deploy/llama-swap-lax/config/llama-cpp/config.yaml   (container: /llama-config/config.yaml)
+    phx:  /opt/docker/deploy/llama-swap-phx/config/llama-cpp/config.yaml
 
 The container runs `-config … -watch-config`, so a saved edit is picked up in
-about 2 s. **No restart, no Komodo deploy.** Back up first:
+about 2 s. **No restart, no compose run.** Back up first:
 
-    ssh phx 'cp -a /opt/ai/config/llama-swap/config.yaml \
-             /opt/ai/config/llama-swap/config.yaml.bak.$(date +%Y%m%d-%H%M%S)'
+    ssh phx 'cp -a /opt/docker/deploy/llama-swap-phx/config/llama-cpp/config.yaml \
+             /opt/docker/deploy/llama-swap-phx/config/llama-cpp/config.yaml.bak.$(date +%Y%m%d-%H%M%S)'
 
 ## Step 1 — pick the stanza shape
 
@@ -48,10 +48,11 @@ about 2 s. **No restart, no Komodo deploy.** Back up first:
     aliases: ["mymodel"]
 ```
 
-- `-hf`/`-hff` load from the HF cache mount (`/hf-cache`) and **download lazily
-  at load time** — preseed the cache first, and name the exact quant file
-  ([`download-and-preseed-weights.md`](download-and-preseed-weights.md)). A file
-  already on disk is passed by absolute path instead (`-m /models/<file>.gguf`).
+- **Absolute paths, one file per flag.** Stanzas name `-m`/`--mmproj`/`-md`
+  under `/models/llama-cpp/<model>/`. The `-hf`/`-hff` forms are gone: there is
+  no `/hf-cache` mount (retired 2026-11-04), so a repo reference has nowhere to
+  resolve. Download first and name the exact quant file
+  ([`download-and-preseed-weights.md`](download-and-preseed-weights.md)).
 - `${PORT}` is assigned by llama-swap from `startPort: 10001`. Never hardcode.
 - `capabilities.context` must match `--ctx-size`; clients trust the former.
 - `ttl` (seconds idle) and `unloadTimeout` (grace before kill) decide eviction.
@@ -140,9 +141,9 @@ matrix:
 
 1. Remove the stanza **and** every matrix reference (`vars` entry, `sets` leaf).
    A dangling leaf fails config load and llama-swap keeps the old config.
-2. Delete the weights from the host only when nothing else references them
-   (`phx`: `/opt/ai/strata/models/<name>`, `/opt/ai/hyperqwen/models`,
-   `/opt/ai/nemotron/models`; `lax`: `/opt/ai/models`, `/opt/ai/custom/models`).
+2. Delete the weights from the host only when nothing else references them —
+   the model's own directory under `/opt/ai/models/llama-cpp/<model>/` (plus
+   `/opt/ai/models/{vllm,audio-cpp,onnx}/<name>` for sibling backends).
 3. Remove the LiteLLM `model_list` entry (layer 2) — otherwise `ai.` keeps
    advertising a model that no longer starts.
 

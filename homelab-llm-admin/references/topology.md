@@ -27,16 +27,14 @@ a request, not a step).
 
 | Path | Owner | Status |
 |---|---|---|
-| `lax:/opt/ai/config/llama-swap/config.yaml` | `sysops:sysops`, dir `sysops` | fully writable; backup + atomic save fine |
-| `phx:/opt/ai/config/llama-swap/config.yaml` | `sysops:sysops`, dir `sysops` | same |
-| `phx:/opt/ai/strata`, `/opt/ai/hyperqwen`, `/opt/ai/nemotron` | `sysops` | weights are writable |
-| `mco:/stackData` | `sysops:sysops` | writable, **setgid** (`drwxr-sr-x`) |
-| `mco:/stackData/litellm/config/` | `sysops:sysops 755` | writable since 2026-10-30 |
-| `mco:/stackData/litellm/config/config.yaml` | `sysops:sysops 644` | editable, backup-able, atomic-save-able |
+| `lax:/opt/docker/deploy/llama-swap-lax/config/llama-cpp/config.yaml` | `sysops:sysops`, dir `sysops` | fully writable; git checkout, commit after edit |
+| `phx:/opt/docker/deploy/llama-swap-phx/config/llama-cpp/config.yaml` | `sysops:sysops`, dir `sysops` | same |
+| `lax:/opt/ai/models`, `phx:/opt/ai/models` | `sysops:sysops`, setgid | weight trees; `mkdir` a model dir directly |
+| `mco:/opt/docker/deploy/ai/config/litellm/config.yaml` | `sysops:sysops 644` | the live LiteLLM config; git checkout, commit after edit |
 
-Before 2026-10-30 the `litellm/config` directory was `root:root 755`, which
-blocked backups, editor swap files and write-then-rename saves; it was fixed with
-the host's `unfuck` alias (see below) and the file set back to `644`.
+`/stackData/litellm/config/config.yaml` still exists on `mco` but is **not**
+mounted — it is a pre-migration leftover. Editing it changes nothing; check
+`docker inspect ai-litellm-1` for the real source (2026-11-07).
 
 ### The `unfuck` alias
 
@@ -50,7 +48,7 @@ It operates on the **current directory** (the optional argument is the
 *owner*, not a path), and it needs sudo. Consequences worth knowing:
 
 - `chmod -R 755` marks every **file** executable too — reset configs to `644`
-  afterwards (`chmod 644 /stackData/litellm/config/config.yaml`).
+  afterwards (`chmod 644 /opt/docker/deploy/ai/config/litellm/config.yaml`).
 - `chmod g+s .` is **not** recursive, so only the top directory becomes setgid.
 - It chowns recursively — check the scope first (`du -sh`, `ls`) on a big tree.
 
@@ -62,21 +60,22 @@ default vault reach: it is an escalation the user grants (`/vault add <SA>`), no
 a routine lookup. Never put the password in a command line or a log; pipe it to
 `sudo -S` on stdin.
 
-### Komodo
+### No orchestration plane
 
-Read operations cover every stack. **Write is per-stack and per-user**: deploys
-of `llama-swap-phx` work, `ai` returns `insufficient permissions: Must have at
-least Write permissions`. `komodo_stack_apply` with `config.config_files` needs
-Write on that stack too. A refusal here is an authorization answer, not a
-malformed request — ask the user to change the grant or perform the edit.
+Komodo was decommissioned **2026-11-02** (Core down, Periphery removed from every
+host, `/etc/komodo` purged). Do not look for a control plane and do not trust
+anything that still mentions one: each stack is a git checkout under
+`/opt/docker/deploy/<stack>` and `docker compose` on the host is the supported
+path. `gitea` and `op-connect` are hand-run — never "deploy" them from another
+stack's compose run, and never `down -v` either.
 
 ### Vault (secrets)
 
 | Tier | Reachable by default | Holds |
 |---|---|---|
-| `HL-OPS` | **yes**, read-only | `litellm-ops` (virtual key aliases `pi`, `public`, `work`, `openwebui`) |
+| `HL-OPS` | **yes**, read-only | `litellm-ops` (virtual keys `pi`, `public`, `work`; the OpenWebUI key is parked as `retired-openwebui`) |
 | `HL-SRV` | no | per-service items (`llama-swap-lax`, `llama-swap-phx`, …) |
-| `HL-INF` | no | host sudo/ssh, tailscale control plane, Komodo infra key |
+| `HL-INF` | no | host sudo/ssh, tailscale control plane (the Komodo key is retired) |
 
 Default reach is `HL-OPS` with manage OFF: reads and `vault_run` injection work;
 any write is refused until the user arms `/vault manage`. `HL-SRV`/`HL-INF` are
@@ -98,12 +97,15 @@ llama-swap config.
 
 ## Hosts
 
-| Host | Role | GPUs | Stacks (Komodo) |
+| Host | Role | GPUs | Stacks (deploy trees) |
 |---|---|---|---|
-| `lax` | GPU node + utility models (OCR, ASR, embeddings, doc-layout) | CUDA | `llama-swap-lax` |
-| `phx` | GPU node, chat weights | 2× RTX 3060 12 GB | `llama-swap-phx`, plus Strata/vLLM siblings spawned by llama-swap |
+| `lax` | GPU node + utility models (OCR, ASR, embeddings, doc-layout) | 2× RTX 3060 12 GB | `llama-swap-lax` |
+| `phx` | GPU node, chat weights | 2× RTX 3060 12 GB | `llama-swap-phx` |
 | `mco` | Front door only, no GPUs | — | `ai` (LiteLLM), `crawl4ai`, `mcp`, `monitoring`, `mail` |
 | `las` | This box — agent sandbox | — | — |
+
+Deploy trees: `/opt/docker/deploy/<stack>`; runtime state:
+`/opt/docker/data/<stack>`.
 
 ## Nodes
 
@@ -113,7 +115,7 @@ llama-swap config.
 | containers | `llama-swap-lax-app-1`, `llama-swap-lax-ts-1` | `llama-swap-phx-app-1`, `llama-swap-phx-ts-1` |
 | image | `ghcr.io/mostlygeek/llama-swap:unified-cuda13` | same |
 | command | `-config /llama-config/config.yaml -watch-config` | same |
-| config (host) | `/opt/ai/config/llama-swap/config.yaml` | same path |
+| config (host) | `/opt/docker/deploy/llama-swap-lax/config/llama-cpp/config.yaml` | `/opt/docker/deploy/llama-swap-phx/config/llama-cpp/config.yaml` |
 | reload | file watch, ~2 s | same |
 | API keys in config | `${env.LLAMA_SWAP_API_KEY}`, `${env.AI_LAX_KEY}` | `${env.LLAMA_SWAP_API_KEY}`, `${env.AI_PHX_KEY}` |
 | `startPort` | 10001 | 10001 |
@@ -126,23 +128,23 @@ llama-swap config.
 
 | host | container | holds |
 |---|---|---|
-| `/opt/ai/models` | `/models` | local GGUF/model trees (`audio/`, `vllm/`) |
-| `/opt/ai/custom/models` | `/custom` | unpublished files referenced by absolute path |
-| `/home/sysops/.cache/huggingface/hub` | `/hf-cache` | `hf` download cache (`-hf` resolves here) |
-| `/opt/ai/config/llama-swap` | `/llama-config` | the config |
+| `/opt/ai/models` (ro) | `/models` | `llama-cpp/`, `audio-cpp/`, `vllm/`, `onnx/` |
+| `/opt/docker/deploy/llama-swap-lax/config/llama-cpp` | `/llama-config` | the config |
+
+There is no `/hf-cache` and no `/custom` mount (retired 2026-11-04): every
+stanza loads **one file by absolute path** under `/opt/ai/models/llama-cpp/<model>/`.
 
 `phx`
 
 | host | container | holds |
 |---|---|---|
-| `/opt/ai/strata/{models,data}` | per-stanza `-v` | Strata/Momoe weights + tokenizer packs |
-| `/opt/ai/hyperqwen/models` | per-stanza `-v` | Qwen3.8-27B W4A16 (`…-fast` variant) |
-| `/opt/ai/nemotron/{models,data}` | per-stanza `-v` | Nemotron Bolt 74B GGUF |
-| `/home/sysops/.cache/huggingface/hub` | `/hf-cache` | `-hf` cache |
-| `/opt/ai/config/llama-swap` | `/llama-config` | the config |
+| `/opt/ai/models` (rw) | `/models` | `llama-cpp/<model>/` weight trees |
+| `/opt/docker/deploy/llama-swap-phx/config/llama-cpp` | `/llama-config` | the config |
 
-`LLAMA_SWAP_MODELS_DIR=/opt/ai/strata` exists so docker-run stanzas can write
-`${env.LLAMA_SWAP_MODELS_DIR}/models/<name>` instead of a literal path.
+No `/hf-cache` mount and no `-hf` stanzas (retired 2026-11-04): weights are plain
+files under `/opt/ai/models/llama-cpp/<model>/`, passed with `-m`/`--mmproj`/`-md`.
+`LLAMA_SWAP_MODELS_DIR=/opt/ai/strata` is still exported for the `docker run`
+stanzas but no current stanza uses it, and `/opt/ai/strata` does not exist.
 
 ## Front door (LiteLLM, MCO)
 
@@ -152,7 +154,7 @@ llama-swap config.
 | container | `ai-litellm-1` (shares `ai-ts-1` netns) |
 | image | `docker.litellm.ai/berriai/litellm:main-stable` |
 | version | whatever `main-stable` resolves to (`docker inspect` labels) |
-| live config | `mco:/stackData/litellm/config/config.yaml` → `/app/config` |
+| live config | `mco:/opt/docker/deploy/ai/config/litellm/config.yaml` → `/app/config` (git checkout) |
 | reload | `--reload` + `watchfiles` on `PYTHONPATH=/watchfiles`, ~1–2 s |
 | state | Postgres `litellm` (`store_model_in_db: true`), Redis for rate limits |
 | upstream keys | `LLAMA_SWAP_LAX_KEY`, `LLAMA_SWAP_PHX_KEY`, `OPENROUTER_API_KEY` (deploy-time) |
@@ -172,11 +174,12 @@ Stored in Postgres; aliases in use:
 |---|---|
 | `pi` | all models (`models: []`) |
 | `work` | all models |
-| `openwebui` | all models |
 | `public` | **explicit list** — new models must be added by hand |
 
 The key values live in the vault item `litellm-ops` (fields `pi`, `public`,
-`work`, `openwebui`), never in the repo.
+`work`, and `retired-openwebui` for the parked OpenWebUI key), never in the repo.
+`vault_describe` is the authority on labels — they get renamed when keys are
+parked.
 
 ## Model roster — derive it, don't remember it
 
