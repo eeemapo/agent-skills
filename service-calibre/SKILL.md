@@ -77,6 +77,16 @@ Three variables, supplied by the caller. This skill does not acquire them.
 different ports on the same host and only one speaks this API — the GUI's
 `/ajax/*` 404s. See [`references/cdb-api.md`](references/cdb-api.md#topology).
 
+In this deployment the item `calibre` holds **only** `username` + `password`
+(no URL), and the content server is a tailnet TCP forward:
+
+    CALIBRE_URL=https://calibre.armadillo-hops.ts.net:8082
+
+:443 is the GUI wrapper; the content server is 8082 on the tailnet → 8081 in the
+container. Verified 2026-11-07: `auth` ok, five libraries (`import`,
+`nonfiction`, `restricted`, `grimoires`, `fiction`), `count` → 125.
+Adding `base_url` to the vault item would remove the last hardcoded value.
+
 ## Gotchas
 
 - **Auth is HTTP Digest, not Basic.** Basic produces

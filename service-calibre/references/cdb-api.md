@@ -6,12 +6,13 @@ A Calibre container runs two listeners:
 
 | Internal | What | How it is usually reached |
 |---|---|---|
-| 8080 | desktop GUI, wrapped for the web (Selkies/VNC), `nginx` in front | the host on **443** |
-| 8081 | **content server** (this API) | a separate TLS-terminated port on the same host |
+| 8080 | desktop GUI, wrapped for the web (Selkies/VNC), `nginx` in front | tailnet **443** |
+| 8081 | **content server** (this API) | tailnet **8082** (`TCPForward` 8082 → `localhost:8081`) |
 
 The two are different ports on the same host, and only one speaks this API.
 `CALIBRE_URL` must be the content-server port; the GUI's `/ajax/*` endpoints 404
-with an `nginx` server header.
+with an `nginx` server header (verified 2026-11-07 — 443/nignx 404s, 8082
+answers Digest and returns `library-info`).
 
 ## Authentication
 

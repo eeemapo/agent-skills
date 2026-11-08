@@ -1,6 +1,6 @@
 ---
 name: komodo-ops
-description: Administer a Komodo (komo.do) Docker orchestration server through the pi-komodo extension's in-process `komodo_*` tools. Use to check or load a session key (`komodo_auth`, `komodo_whoami`), read servers, swarms, stacks, deployments, builds, repos, procedures, actions, resource syncs, builders, alerters, variables, tags, containers, images, networks and volumes; create, update, copy, rename and delete resources; run and poll executions such as deploy, build, sync, start/stop/destroy and Docker prune; read container/stack/deployment logs; export resources as sync TOML; and reach any of the 334 Core operations through `komodo_help` + `komodo_raw`. Trigger whenever the user mentions Komodo, komo.do, Komodo Core or Periphery, or asks to deploy or manage containers across servers through Komodo — even without saying "Komodo".
+description: "[DECOMMISSIONED 2026-11-02 — kept for reference only; there is no Komodo server to call.] Administer a Komodo (komo.do) Docker orchestration server through the pi-komodo extension's in-process `komodo_*` tools. Use to check or load a session key (`komodo_auth`, `komodo_whoami`), read servers, swarms, stacks, deployments, builds, repos, procedures, actions, resource syncs, builders, alerters, variables, tags, containers, images, networks and volumes; create, update, copy, rename and delete resources; run and poll executions such as deploy, build, sync, start/stop/destroy and Docker prune; read container/stack/deployment logs; export resources as sync TOML; and reach any of the 334 Core operations through `komodo_help` + `komodo_raw`. Trigger whenever the user mentions Komodo, komo.do, Komodo Core or Periphery, or asks to deploy or manage containers across servers through Komodo — even without saying "Komodo".
 license: MIT
 compatibility: pi with the pi-komodo extension loaded and a Komodo session key (loaded with `/komodo`, or auto-loaded from the `komodo` entry in pi's auth.json). Requires network access to Komodo Core. No Komodo CLI, Docker socket, or database access.
 metadata:
@@ -12,6 +12,15 @@ metadata:
 ---
 
 # Komodo Operations
+
+> **DECOMMISSIONED 2026-11-02.** Komodo Core is down, Periphery was removed from
+> every host, `/etc/komodo` was purged and `komodo.armadillo-hops.ts.net` no
+> longer resolves. **This skill describes a system that no longer exists** — do
+> not authenticate to it, deploy through it, or look for a control plane.
+> Stacks are now plain `docker compose` on each host, from the git checkout under
+> `/opt/docker/deploy/<stack>`; for the GPU/model stacks see the
+> `homelab-llm-admin` skill. The pages below are kept only as a description of
+> how the retired system worked.
 
 Administer a Komodo **Core** instance — a Docker build/deploy orchestrator driving any
 number of **Periphery**-connected servers — through the **pi-komodo** extension. Everything

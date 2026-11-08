@@ -58,22 +58,22 @@ in [`scripts/gitea.sh`](scripts/gitea.sh).
 
 ## Configuration
 
-| Variable | Vault field | Meaning |
-|----------|-------------|---------|
-| `GITEA_URL` | `base_url` | Base URL, **with** scheme (no trailing `/api`) |
-| `GITEA_TOKEN` | `credential` | Gitea API token |
+| Variable | Source | Meaning |
+|----------|--------|---------|
+| `GITEA_TOKEN` | the `credential` field of the HL-OPS item `gitea-ops-token` | Gitea API token (an admin token in this deployment) |
+| `GITEA_URL` | the caller | Base URL, **with** scheme and no trailing `/api` |
 
-One `vault_run` supplies both — the item carries the URL as well as the token, so
-no variable comes from the task text:
+The reachable item carries **only** the credential, so the URL is supplied beside
+it — verified 2026-11-07 against Gitea **28.2.0** (`version`, `whoami` →
+`trimatrix`). A session with **HL-SRV** reach may instead find a `gitea-api`
+item that holds `base_url` + `credential`; `vault_whoami` reports which vaults
+the identity can see, and widening that reach is the user's call.
 
     vault_run({
-      "vault": "HL-SRV",
-      "item": "gitea-api",
-      "fields": [{"name": "GITEA_URL", "field": "base_url"},
-                 {"name": "GITEA_TOKEN", "field": "credential"}],
-      "command": "bash /home/sysops/repos/agent-skills/service-gitea/scripts/gitea.sh repos"})
-
-`base_url` already includes `https://` — do not add or strip a scheme.
+      "vault": "HL-OPS",
+      "item": "gitea-ops-token",
+      "fields": [{"name": "GITEA_TOKEN", "field": "credential"}],
+      "command": "GITEA_URL=https://gitea.armadillo-hops.ts.net bash /home/sysops/.pi/agent/skills/service-gitea/scripts/gitea.sh repos"})
 
 Reads are safe by default. **Writes refuse to run without `--yes`** — that is an
 explicit approval token, not a formality; pass it only once the user has approved

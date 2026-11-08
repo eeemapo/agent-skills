@@ -62,7 +62,7 @@ comes from the task text:
       "item": "llama-swap-lax",
       "fields": [{"name": "LLAMA_SWAP_URL", "field": "base_url"},
                  {"name": "LLAMA_SWAP_KEY", "field": "credential"}],
-      "command": "bash /home/sysops/repos/agent-skills/service-llama-swap/scripts/llama-swap.sh models"})
+      "command": "bash /home/sysops/.pi/agent/skills/service-llama-swap/scripts/llama-swap.sh models"})
 
 `base_url` already includes `https://` — do not add or strip a scheme.
 

@@ -49,9 +49,12 @@ Two paths reach the same iPhone/iPad: **Bark** (direct APNs push) and **Apprise*
 | `BARK_KEY` | yes | the **`credential` field** of the same item (the only credential Bark uses) |
 | `APPRISE_URL` | for `apprise` | the Apprise host from the notifications stack — there is **no** vault item for it |
 
-Only `BARK_KEY` is a secret; both URLs are ordinary config, so passing them in the
-environment is fine. The `https://` scheme is **not** part of the stored value; the script adds
-  it if missing, so pass the field through unchanged.
+Only `BARK_KEY` is a secret; both URLs are ordinary config, so passing them in
+the environment is fine. Pass `base_url` through **unchanged**: the script adds
+`https://` when the stored value has no scheme, so either form works.
+
+Verified 2026-11-07 against Bark **v2.3.7**: `ping` →
+`{"code":200,"message":"pong",…}`, `info` → `3 device(s)`.
 
 ## Gotchas
 

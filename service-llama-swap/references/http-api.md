@@ -10,7 +10,8 @@ header also works).
 | models | GET | `/v1/models` |
 | running | GET | `/running` |
 | profiles | GET | `/api/profiles` |
-| logs | GET | `/logs` (stream) |
+| logs | GET | `/logs` (buffered snapshot) · `/logs/stream[/{stream}]` (live) |
+| pause / resume | POST | `/api/models/pause` · `/api/models/resume` |
 | unload one | POST | `/api/models/unload/{model_id}` |
 | unload all | POST | `/api/models/unload` |
 
@@ -23,6 +24,11 @@ header also works).
 - `GET /v1/models` / `/models`
 - `GET /props?model={id}`
 - `POST /v1/rerank`, `/infill`, `/completion`
+
+All control paths above exist on **v268** (both nodes), verified against the tag's
+`internal/server/server.go` route table: `GET /running`, `GET /api/version`,
+`GET /api/profiles`, `PUT /api/profiles/active`, `POST /api/models/unload[/{model…}]`,
+`POST /api/models/{pause,resume}`, `GET /logs`, `GET /logs/stream`.
 
 ## Response shape
 
@@ -38,7 +44,7 @@ header also works).
 
 `/api/version`:
 
-    {"build_date":"2026-10-03T06:29:19Z","commit":"079c35a","version":"v262"}
+    {"build_date":"2026-10-03T06:29:19Z","commit":"079c35a","version":"v268"}
 
 ## Errors
 
